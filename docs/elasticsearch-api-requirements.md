@@ -530,8 +530,7 @@ gummy-search/
 │   └── error.rs           # Error handling
 ├── tests/
 │   └── integration.rs     # Integration tests
-└── examples/
-    └── basic_usage.rs     # Usage examples
+└── example_laravel_app/   # Laravel Scout integration example
 ```
 
 ### Example API Client

@@ -138,7 +138,7 @@ make build
 # Build the project (release)
 make build-release
 
-# Run the basic_usage example
+# Run the server
 make run
 
 # Run all tests
@@ -169,8 +169,8 @@ cargo build
 # Run tests
 cargo test
 
-# Run examples
-cargo run --example basic_usage
+# Run the server
+cargo run
 
 # Run clippy linter
 cargo clippy -- -D warnings

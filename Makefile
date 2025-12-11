@@ -5,7 +5,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build          - Build the project (debug)"
 	@echo "  build-release  - Build the project (release)"
-	@echo "  run            - Run the basic_usage example"
+	@echo "  run            - Run the Gummy Search server"
 	@echo "  test           - Run all tests"
 	@echo "  lint           - Run clippy linter"
 	@echo "  fmt            - Format code with rustfmt"
@@ -29,7 +29,7 @@ build-release:
 
 # Run targets
 run:
-	cargo run --example basic_usage
+	cargo run
 
 # Test targets
 test:
