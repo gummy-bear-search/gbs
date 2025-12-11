@@ -1,0 +1,11 @@
+# Clippy configuration
+# See: https://rust-lang.github.io/rust-clippy/master/index.html
+
+# Allow some common patterns that might be needed
+avoid-breaking-exported-api = false
+
+# Set the maximum allowed complexity for functions
+cyclomatic-complexity-threshold = 30
+
+# Allow single-character names in some contexts
+single-char-lifetime-names = false
