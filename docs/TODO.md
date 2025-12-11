@@ -4,13 +4,13 @@ This document tracks the development progress and tasks for the Gummy Search pro
 
 ## Current Status
 
-**Overall Progress:** ~40% of MVP endpoints implemented
+**Overall Progress:** ~55% of MVP endpoints implemented
 
 - ✅ **Core Infrastructure:** Complete (HTTP server, routing, error handling, logging)
 - ✅ **Storage Backend:** Basic in-memory storage implemented
 - ✅ **Index Management:** 4/6 endpoints complete
 - ✅ **Document Operations:** 4/4 endpoints complete
-- ⏳ **Bulk Operations:** Routes defined, implementation pending
+- ✅ **Bulk Operations:** Fully implemented (index, create, update, delete)
 - ⏳ **Search:** Routes defined, implementation pending
 - ⏳ **Refresh:** Routes defined, no-op implementation
 
@@ -71,20 +71,18 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Return operation status
 
 ### Bulk Operations
-- [ ] **POST /_bulk** - Bulk operations
-  - [ ] Support index operation
-  - [ ] Support create operation
-  - [ ] Support update operation
-  - [ ] Support delete operation
-  - [ ] Handle NDJSON format
-  - [ ] Return results for each operation
-  - [ ] Handle partial errors
-  - [ ] Support refresh parameter
-  - **Status:** Route defined, implementation pending
+- [x] **POST /_bulk** - Bulk operations
+  - [x] Support index operation
+  - [x] Support create operation
+  - [x] Support update operation
+  - [x] Support delete operation
+  - [x] Handle NDJSON format
+  - [x] Return results for each operation
+  - [x] Handle partial errors
+  - [ ] Support refresh parameter (not yet implemented)
 
-- [ ] **POST /{index}/_bulk** - Bulk operations for specific index
-  - [ ] Same as above but with default index
-  - **Status:** Route defined, implementation pending
+- [x] **POST /{index}/_bulk** - Bulk operations for specific index
+  - [x] Same as above but with default index
 
 ### Search
 - [ ] **POST /{index}/_search** - Search documents
@@ -210,20 +208,20 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - Basic in-memory storage
 - Index management (create, get, delete, check existence)
 - Document CRUD operations (create, read, update, delete)
+- Bulk operations (index, create, update, delete with NDJSON support)
 - Cluster health endpoint
 - Error handling with proper HTTP status codes
 - Request routing for all MVP endpoints
 
 ### In Progress 🚧
-- Bulk operations (route defined, implementation pending)
 - Search functionality (route defined, implementation pending)
 - Refresh operations (route defined, no-op implementation)
 
 ### Next Priorities
-1. Implement bulk operations (critical for MVP)
-2. Implement basic search (match query)
-3. Implement refresh functionality
-4. Add unit and integration tests
+1. Implement basic search (match query) - Critical for MVP
+2. Implement refresh functionality
+3. Add unit and integration tests
+4. Implement additional query types (term, bool, etc.)
 
 ## Notes
 

@@ -4,32 +4,125 @@ Elasticsearch-compatible search engine written in Rust.
 
 ## Overview
 
-Gummy Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.4.0 API.
+Gummy Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.4.0 API. It provides a RESTful API compatible with Elasticsearch endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
 
 ## Features
 
-- Index management (create, update, delete)
-- Document operations (index, get, delete)
-- Bulk operations for mass indexing
-- Search queries with various query types
-- Compatible with Laravel Scout
+### ✅ Implemented
+- **Index Management**: Create, get, delete, and check index existence
+- **Document Operations**: Full CRUD (create, read, update, delete)
+- **Bulk Operations**: Mass indexing with NDJSON format support
+- **Cluster Health**: Health check endpoint
+- **HTTP Server**: Built with Axum, async/await support
+- **In-Memory Storage**: Fast in-memory storage for MVP
 
-## Usage
+### 🚧 In Progress
+- **Search Functionality**: Basic search queries (routes defined, implementation pending)
+- **Refresh Operations**: Index refresh endpoints (no-op implementation)
 
-```rust
-use gummy_search::GummySearchClient;
+### 📋 Planned
+- Advanced query types (match, term, bool, etc.)
+- Search result ranking and scoring
+- Index refresh functionality
+- Persistent storage backend (RocksDB/Sled)
 
-let client = GummySearchClient::new("http://localhost:9200");
+## Quick Start
 
-// Create an index
-client.create_index("content_index", settings).await?;
+### Running the Server
 
-// Index a document
-client.index_document("content_index", "123", &document).await?;
+```bash
+# Build and run
+cargo run
 
-// Search
-let results = client.search("content_index", query).await?;
+# Or using Makefile
+make build-release
+./target/release/gummy-search
 ```
+
+The server will start on `http://localhost:9200` (Elasticsearch default port).
+
+### API Usage Examples
+
+#### Create an Index
+
+```bash
+curl -X PUT "http://localhost:9200/my_index" -H 'Content-Type: application/json' -d'
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "title": { "type": "text" },
+      "body": { "type": "text" }
+    }
+  }
+}'
+```
+
+#### Index a Document
+
+```bash
+curl -X PUT "http://localhost:9200/my_index/_doc/1" -H 'Content-Type: application/json' -d'
+{
+  "title": "Example Document",
+  "body": "This is the content of the document"
+}'
+```
+
+#### Get a Document
+
+```bash
+curl -X GET "http://localhost:9200/my_index/_doc/1"
+```
+
+#### Bulk Operations
+
+```bash
+curl -X POST "http://localhost:9200/my_index/_bulk" -H 'Content-Type: application/x-ndjson' -d'
+{"index":{"_id":"1"}}
+{"title":"Document 1","body":"Content 1"}
+{"index":{"_id":"2"}}
+{"title":"Document 2","body":"Content 2"}
+{"delete":{"_id":"1"}}
+'
+```
+
+#### Check Cluster Health
+
+```bash
+curl -X GET "http://localhost:9200/_cluster/health"
+```
+
+#### Check Index Existence
+
+```bash
+curl -X HEAD "http://localhost:9200/my_index"
+```
+
+## Running the Server
+
+### Local Development
+
+```bash
+# Run in debug mode
+cargo run
+
+# Run in release mode
+cargo run --release
+
+# Or using Makefile
+make build-release
+./target/release/gummy-search
+```
+
+The server will start on `http://localhost:9200` by default.
+
+### Environment Variables
+
+- `RUST_LOG` - Set logging level (e.g., `RUST_LOG=info`, `RUST_LOG=debug`)
+- `PORT` - Server port (default: 9200) - *Not yet configurable, hardcoded to 9200*
 
 ## Development
 
@@ -156,15 +249,64 @@ cargo test -- --nocapture  # Show output
 
 ```bash
 # Run the container
-docker run --rm gummy-search
-
-# Run with port mapping (if server is implemented)
 docker run --rm -p 9200:9200 gummy-search
+
+# Run in background
+docker run -d --name gummy-search -p 9200:9200 gummy-search
+
+# View logs
+docker logs gummy-search
 ```
 
 ## API Compatibility
 
-See [API Requirements](../../../internal_docs/elasticsearch-api-requirements.md) for detailed API endpoint specifications.
+Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints. See [API Requirements](docs/elasticsearch-api-requirements.md) for detailed API endpoint specifications.
+
+### Implemented Endpoints
+
+- `PUT /{index}` - Create index
+- `HEAD /{index}` - Check index existence
+- `GET /{index}` - Get index information
+- `DELETE /{index}` - Delete index
+- `PUT /{index}/_doc/{id}` - Index document
+- `POST /{index}/_doc` - Create document with auto-generated ID
+- `GET /{index}/_doc/{id}` - Get document
+- `DELETE /{index}/_doc/{id}` - Delete document
+- `POST /_bulk` - Bulk operations
+- `POST /{index}/_bulk` - Bulk operations for specific index
+- `GET /_cluster/health` - Cluster health
+
+### Status
+
+See [TODO](docs/TODO.md) for detailed progress and upcoming features.
+
+## Architecture
+
+- **HTTP Framework**: [Axum](https://github.com/tokio-rs/axum) - Modern async web framework
+- **Async Runtime**: [Tokio](https://tokio.rs/) - Async runtime for Rust
+- **Storage**: In-memory HashMap (MVP), extensible for persistent storage
+- **Error Handling**: Custom error types with proper HTTP status codes
+- **Logging**: [Tracing](https://github.com/tokio-rs/tracing) for structured logging
+
+## Project Status
+
+**Current Version**: 0.1.0 (MVP)
+
+- ✅ Core infrastructure complete
+- ✅ Index and document operations working
+- ✅ Bulk operations implemented
+- 🚧 Search functionality in progress
+- 📋 Advanced features planned
+
+See [TODO.md](docs/TODO.md) for detailed progress tracking.
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- Code follows Rust conventions
+- All tests pass (`make test`)
+- Code is formatted (`make fmt`)
+- Linter passes (`make lint`)
 
 ## License
 
