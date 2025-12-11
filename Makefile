@@ -1,4 +1,4 @@
-.PHONY: help build build-release run test lint fmt fmt-check check clean clippy all
+.PHONY: help build build-release run test lint fmt fmt-check check clean clippy all docker-build docker-test docker-run docker-shell
 
 # Default target
 help:
@@ -13,6 +13,12 @@ help:
 	@echo "  check          - Check code compiles without building"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  all            - Run fmt-check, lint, and test"
+	@echo ""
+	@echo "Docker targets:"
+	@echo "  docker-build   - Build Docker image"
+	@echo "  docker-test    - Run tests in Docker"
+	@echo "  docker-run     - Run the application in Docker"
+	@echo "  docker-shell   - Open interactive shell in Docker builder"
 
 # Build targets
 build:
@@ -58,3 +64,21 @@ clean:
 
 # Run all checks
 all: fmt-check lint test
+
+# Docker targets
+docker-build:
+	docker build -t gummy-search .
+
+docker-build-builder:
+	docker build --target builder -t gummy-search:builder .
+
+docker-test: docker-build-builder
+	docker run --rm -v $$(pwd):/app -w /app gummy-search:builder \
+		cargo test
+
+docker-run:
+	docker run --rm gummy-search
+
+docker-shell: docker-build-builder
+	docker run --rm -it -v $$(pwd):/app -w /app gummy-search:builder \
+		/bin/sh

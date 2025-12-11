@@ -89,6 +89,79 @@ cargo fmt
 cargo fmt -- --check
 ```
 
+## Docker
+
+The project includes a multi-stage Dockerfile based on the official Rust 1.91.1 Alpine image.
+
+### Using Makefile (Recommended)
+
+```bash
+# Build Docker image
+make docker-build
+
+# Run tests in Docker
+make docker-test
+
+# Run the application in Docker
+make docker-run
+
+# Open interactive shell in Docker (for development)
+make docker-shell
+```
+
+### Building the Docker image
+
+```bash
+# Build the final image
+docker build -t gummy-search .
+
+# Build the builder stage (for development)
+docker build --target builder -t gummy-search:builder .
+```
+
+### Running Tests in Docker
+
+There are several ways to run tests:
+
+**Option 1: Using Makefile (easiest)**
+```bash
+make docker-test
+```
+
+**Option 2: Using Docker directly**
+```bash
+# Build the builder stage first
+docker build --target builder -t gummy-search:builder .
+
+# Run tests with volume mount (recommended for development)
+docker run --rm -v $(pwd):/app -w /app gummy-search:builder \
+    cargo test
+
+# Run tests without volume mount (uses code from image)
+docker run --rm gummy-search:builder \
+    cargo test
+```
+
+**Option 3: Interactive shell for debugging**
+```bash
+# Open interactive shell
+make docker-shell
+
+# Then inside the container:
+cargo test
+cargo test -- --nocapture  # Show output
+```
+
+### Running the Application
+
+```bash
+# Run the container
+docker run --rm gummy-search
+
+# Run with port mapping (if server is implemented)
+docker run --rm -p 9200:9200 gummy-search
+```
+
 ## API Compatibility
 
 See [API Requirements](../../../internal_docs/elasticsearch-api-requirements.md) for detailed API endpoint specifications.
