@@ -12,6 +12,7 @@ use tracing::info;
 
 use crate::error::{GummySearchError, Result};
 use crate::storage::Storage;
+use crate::bulk_ops::{parse_bulk_ndjson, BulkAction, BulkResponse, BulkItemResponse, BulkOperationResult, BulkError, ShardsInfo};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -182,15 +183,86 @@ async fn delete_document(
 }
 
 async fn bulk_operations(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(index): Path<Option<String>>,
     body: String,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<BulkResponse>> {
     info!("Bulk operations for index: {:?}", index);
-    // TODO: Implement bulk operations
-    Err(GummySearchError::InvalidRequest(
-        "Bulk operations not yet implemented".to_string(),
-    ))
+
+    let start_time = std::time::Instant::now();
+    let actions = parse_bulk_ndjson(&body, index.as_deref())?;
+
+    let mut items = Vec::new();
+    let mut has_errors = false;
+
+    for action in actions {
+        // Extract action type and identifiers before executing
+        let (action_type, index_name, id) = match &action {
+            BulkAction::Index { index, id, .. } => ("index", index.clone(), id.clone()),
+            BulkAction::Create { index, id, .. } => ("create", index.clone(), id.clone()),
+            BulkAction::Update { index, id, .. } => ("update", index.clone(), Some(id.clone())),
+            BulkAction::Delete { index, id, .. } => ("delete", index.clone(), Some(id.clone())),
+        };
+
+        let result = match state.storage.execute_bulk_action(action).await {
+            Ok((idx_name, doc_id, status, result)) => {
+                BulkOperationResult {
+                    index: idx_name,
+                    r#type: "_doc".to_string(),
+                    id: doc_id,
+                    version: Some(1),
+                    result,
+                    shards: Some(ShardsInfo {
+                        total: 1,
+                        successful: 1,
+                        failed: 0,
+                    }),
+                    status,
+                    error: None,
+                }
+            }
+            Err(e) => {
+                has_errors = true;
+                let doc_id = id.unwrap_or_else(|| "unknown".to_string());
+
+                BulkOperationResult {
+                    index: index_name,
+                    r#type: "_doc".to_string(),
+                    id: doc_id,
+                    version: None,
+                    result: None,
+                    shards: Some(ShardsInfo {
+                        total: 1,
+                        successful: 0,
+                        failed: 1,
+                    }),
+                    status: 400,
+                    error: Some(BulkError {
+                        r#type: "invalid_request_exception".to_string(),
+                        reason: e.to_string(),
+                    }),
+                }
+            }
+        };
+
+        let item_response = match action_type {
+            "index" => BulkItemResponse::Index { index: result },
+            "create" => BulkItemResponse::Create { create: result },
+            "update" => BulkItemResponse::Update { update: result },
+            "delete" => BulkItemResponse::Delete { delete: result },
+            _ => unreachable!(),
+        };
+
+        items.push(item_response);
+    }
+
+    let took = start_time.elapsed().as_millis() as u32;
+
+    Ok(Json(BulkResponse {
+        took,
+        errors: has_errors,
+        items,
+    }))
 }
 
 async fn search_get(

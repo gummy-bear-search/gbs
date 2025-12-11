@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::{GummySearchError, Result};
+use crate::bulk_ops::BulkAction;
 
 #[derive(Clone, Debug)]
 pub struct Index {
@@ -149,5 +150,59 @@ impl Storage {
             .ok_or_else(|| GummySearchError::DocumentNotFound(id.to_string()))?;
 
         Ok(())
+    }
+
+    pub async fn execute_bulk_action(&self, action: BulkAction) -> Result<(String, String, u16, Option<String>)> {
+        match action {
+            BulkAction::Index { index, id, document } => {
+                let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+                self.index_document(&index, &doc_id, document).await?;
+                Ok((index, doc_id, 201, Some("created".to_string())))
+            }
+            BulkAction::Create { index, id, document } => {
+                let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+                // Check if document exists
+                if self.index_exists(&index).await? {
+                    let indices = self.indices.read().await;
+                    if let Some(idx) = indices.get(&index) {
+                        if idx.documents.contains_key(&doc_id) {
+                            return Err(GummySearchError::InvalidRequest(
+                                format!("Document {} already exists", doc_id)
+                            ));
+                        }
+                    }
+                }
+                self.index_document(&index, &doc_id, document).await?;
+                Ok((index, doc_id, 201, Some("created".to_string())))
+            }
+            BulkAction::Update { index, id, document } => {
+                // For update, we merge with existing document or create new
+                let indices = self.indices.read().await;
+                let existing = indices.get(&index)
+                    .and_then(|idx| idx.documents.get(&id).cloned());
+                drop(indices);
+
+                let updated_doc = if let Some(mut existing_doc) = existing {
+                    // Merge: if document is an object, merge fields
+                    if let (Some(existing_obj), Some(new_obj)) = (existing_doc.as_object_mut(), document.as_object()) {
+                        for (k, v) in new_obj {
+                            existing_obj.insert(k.clone(), v.clone());
+                        }
+                        serde_json::Value::Object(existing_obj.clone())
+                    } else {
+                        document
+                    }
+                } else {
+                    document
+                };
+
+                self.index_document(&index, &id, updated_doc).await?;
+                Ok((index, id, 200, Some("updated".to_string())))
+            }
+            BulkAction::Delete { index, id } => {
+                self.delete_document(&index, &id).await?;
+                Ok((index, id, 200, Some("deleted".to_string())))
+            }
+        }
     }
 }
