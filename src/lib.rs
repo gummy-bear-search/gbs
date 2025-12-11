@@ -5,6 +5,7 @@ pub mod search;
 pub mod bulk;
 pub mod models;
 pub mod error;
+pub mod server;
+pub mod storage;
 
-pub use client::GummySearchClient;
 pub use error::{GummySearchError, Result};
