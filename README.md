@@ -1,5 +1,11 @@
 # Gummy Search
 
+<div align="center">
+
+![Gummy Search Logo](images/gummy-search-400x500.jpg)
+
+</div>
+
 Elasticsearch-compatible search engine written in Rust.
 
 ## Overview
