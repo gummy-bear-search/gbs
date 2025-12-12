@@ -38,6 +38,9 @@ php artisan migrate
 # Seed database with sample data
 php artisan db:seed
 
+# Or seed with real Wikipedia data
+php artisan seed:wikipedia
+
 # Configure Scout
 # Edit .env and set:
 SCOUT_DRIVER=elasticsearch

@@ -34,8 +34,11 @@ php artisan key:generate
 # Run migrations
 php artisan migrate
 
-# Seed database
+# Seed database (with fake data)
 php artisan db:seed
+
+# Or seed with real Wikipedia data (recommended for testing)
+php artisan seed:wikipedia
 ```
 
 ## Step 3: Register Scout Service Provider

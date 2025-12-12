@@ -15,16 +15,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create sample content
-        Content::factory(20)->create();
+        // Check if we should use Wikipedia data
+        $useWikipedia = env('USE_WIKIPEDIA_SEEDER', false);
 
-        // Create sample entities
-        Entity::factory(15)->create();
+        if ($useWikipedia) {
+            $this->call(WikipediaSeeder::class);
 
-        // Create sample files
-        File::factory(10)->create();
-
-        // Create sample dictionary entries
-        Dictionary::factory(25)->create();
+            // Still create some files with factory
+            File::factory(10)->create();
+        } else {
+            // Use factory-generated fake data
+            Content::factory(20)->create();
+            Entity::factory(15)->create();
+            File::factory(10)->create();
+            Dictionary::factory(25)->create();
+        }
     }
 }
