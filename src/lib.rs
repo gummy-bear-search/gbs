@@ -8,5 +8,6 @@ pub mod models;
 pub mod error;
 pub mod server;
 pub mod storage;
+pub mod storage_backend;
 
 pub use error::{GummySearchError, Result};

@@ -106,38 +106,57 @@ async fn delete_index(
     Path(index): Path<String>,
 ) -> Result<StatusCode> {
     if index == "_all" {
-        // TODO: Implement delete all indices
-        return Err(GummySearchError::InvalidRequest(
-            "DELETE /_all not yet implemented".to_string(),
-        ));
+        // Delete all indices - dangerous operation
+        state.storage.delete_all_indices().await?;
+        Ok(StatusCode::OK)
+    } else {
+        state.storage.delete_index(&index).await?;
+        Ok(StatusCode::OK)
     }
-
-    state.storage.delete_index(&index).await?;
-    Ok(StatusCode::OK)
 }
 
 async fn update_mapping(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(index): Path<String>,
-    _body: Json<serde_json::Value>,
+    body: Json<serde_json::Value>,
 ) -> Result<StatusCode> {
     info!("Updating mapping for index: {}", index);
-    // TODO: Implement mapping update
-    Err(GummySearchError::InvalidRequest(
-        "Mapping update not yet implemented".to_string(),
-    ))
+
+    // Extract mappings from body
+    let new_mappings = body.get("properties")
+        .or_else(|| body.get("mappings").and_then(|m| m.get("properties")))
+        .cloned();
+
+    if let Some(mappings) = new_mappings {
+        state.storage.update_mapping(&index, mappings).await?;
+        Ok(StatusCode::OK)
+    } else {
+        Err(GummySearchError::InvalidRequest(
+            "Missing 'properties' or 'mappings.properties' in request body".to_string(),
+        ))
+    }
 }
 
 async fn update_settings(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(index): Path<String>,
-    _body: Json<serde_json::Value>,
+    body: Json<serde_json::Value>,
 ) -> Result<StatusCode> {
     info!("Updating settings for index: {}", index);
-    // TODO: Implement settings update
-    Err(GummySearchError::InvalidRequest(
-        "Settings update not yet implemented".to_string(),
-    ))
+
+    // Extract settings from body
+    let new_settings = body.get("settings")
+        .cloned()
+        .or_else(|| Some(body.0.clone()));
+
+    if let Some(settings) = new_settings {
+        state.storage.update_settings(&index, settings).await?;
+        Ok(StatusCode::OK)
+    } else {
+        Err(GummySearchError::InvalidRequest(
+            "Missing 'settings' in request body".to_string(),
+        ))
+    }
 }
 
 async fn index_document(
@@ -266,37 +285,122 @@ async fn bulk_operations(
 }
 
 async fn search_get(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(index): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>> {
     info!("Search GET for index: {}", index);
-    // TODO: Implement search
-    Err(GummySearchError::InvalidRequest(
-        "Search not yet implemented".to_string(),
-    ))
+
+    // Parse query from query parameters or use match_all
+    let query = if let Some(q) = params.get("q") {
+        // Simple query string: search in all fields
+        serde_json::json!({
+            "match": {
+                "_all": q
+            }
+        })
+    } else {
+        // Default to match_all
+        serde_json::json!({
+            "match_all": {}
+        })
+    };
+
+    let from = params.get("from").and_then(|s| s.parse::<u32>().ok());
+    let size = params.get("size").and_then(|s| s.parse::<u32>().ok());
+    let sort = None; // TODO: Parse sort from query params if needed
+
+    let result = state.storage.search(&index, &query, from, size, sort).await?;
+    Ok(Json(result))
 }
 
 async fn search_post(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(index): Path<String>,
     body: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>> {
     info!("Search POST for index: {}", index);
-    // TODO: Implement search
-    Err(GummySearchError::InvalidRequest(
-        "Search not yet implemented".to_string(),
-    ))
+
+    let query = body.get("query").cloned().unwrap_or_else(|| {
+        serde_json::json!({ "match_all": {} })
+    });
+    let from = body.get("from").and_then(|v| v.as_u64()).map(|v| v as u32);
+    let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
+    let sort = body.get("sort");
+
+    let result = state.storage.search(&index, &query, from, size, sort).await?;
+    Ok(Json(result))
 }
 
 async fn search_multi_index(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     body: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>> {
     info!("Multi-index search");
-    // TODO: Implement multi-index search
-    Err(GummySearchError::InvalidRequest(
-        "Multi-index search not yet implemented".to_string(),
-    ))
+
+    // For now, search all indices
+    // TODO: Support index patterns and specific indices
+    let query = body.get("query").cloned().unwrap_or_else(|| {
+        serde_json::json!({ "match_all": {} })
+    });
+    let from = body.get("from").and_then(|v| v.as_u64()).map(|v| v as u32);
+    let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
+    let sort = body.get("sort");
+
+    // Get all indices and search each one
+    let index_names = state.storage.list_indices().await;
+    let mut all_hits: Vec<serde_json::Value> = Vec::new();
+    let mut total_took = 0u32;
+
+    for index_name in &index_names {
+        let index_result = state.storage.search(index_name, &query, None, None, sort).await?;
+        if let Some(hits) = index_result.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array()) {
+            all_hits.extend_from_slice(hits);
+        }
+        if let Some(took) = index_result.get("took").and_then(|t| t.as_u64()) {
+            total_took = total_took.max(took as u32);
+        }
+    }
+
+    // Sort all hits by score
+    all_hits.sort_by(|a, b| {
+        let score_a = a.get("_score").and_then(|s| s.as_f64()).unwrap_or(0.0);
+        let score_b = b.get("_score").and_then(|s| s.as_f64()).unwrap_or(0.0);
+        score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Apply pagination
+    let from_val = from.unwrap_or(0) as usize;
+    let size_val = size.unwrap_or(10) as usize;
+    let total = all_hits.len();
+    let paginated_hits: Vec<_> = all_hits.into_iter()
+        .skip(from_val)
+        .take(size_val)
+        .collect();
+
+    let max_score = paginated_hits.first()
+        .and_then(|h| h.get("_score").and_then(|s| s.as_f64()));
+
+    Ok(Json(serde_json::json!({
+        "took": total_took,
+        "timed_out": false,
+        "_shards": {
+            "total": index_names.len() as u32,
+            "successful": index_names.len() as u32,
+            "skipped": 0,
+            "failed": 0
+        },
+        "hits": {
+            "total": {
+                "value": total,
+                "relation": "eq"
+            },
+            "max_score": max_score,
+            "hits": paginated_hits
+        }
+    })))
 }
 
 async fn refresh_index(
@@ -304,12 +408,15 @@ async fn refresh_index(
     Path(index): Path<String>,
 ) -> Result<StatusCode> {
     info!("Refreshing index: {}", index);
-    // TODO: Implement refresh
+    // Refresh is a no-op for in-memory storage
+    // In a persistent storage backend, this would flush changes to disk
+    // For now, we just return OK as changes are immediately available
     Ok(StatusCode::OK)
 }
 
 async fn refresh_all(State(_state): State<AppState>) -> Result<StatusCode> {
     info!("Refreshing all indices");
-    // TODO: Implement refresh all
+    // Refresh all is a no-op for in-memory storage
+    // In a persistent storage backend, this would flush all changes to disk
     Ok(StatusCode::OK)
 }

@@ -22,6 +22,12 @@ pub enum GummySearchError {
 
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
+
+    #[error("Storage error: {0}")]
+    Storage(String),
+
+    #[error("Task join error: {0}")]
+    TaskJoin(#[from] tokio::task::JoinError),
 }
 
 impl IntoResponse for GummySearchError {
@@ -32,6 +38,8 @@ impl IntoResponse for GummySearchError {
             GummySearchError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             GummySearchError::Elasticsearch(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             GummySearchError::Json(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            GummySearchError::Storage(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            GummySearchError::TaskJoin(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
         let body = serde_json::json!({

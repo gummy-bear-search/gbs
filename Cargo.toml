@@ -18,6 +18,10 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["v4"] }
+sled = "0.34"
+async-trait = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
+axum-test = "9.0"
+tempfile = "3.8"

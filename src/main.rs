@@ -10,8 +10,14 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    // Create storage
-    let storage = Storage::new();
+    // Create storage with Sled persistence
+    // Use data directory from environment or default to ./data
+    let data_dir = std::env::var("GUMMY_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
+    tracing::info!("Using data directory: {}", data_dir);
+
+    let storage = Storage::with_sled(&data_dir)?;
+    storage.load_from_backend().await?;
+
     let state = AppState {
         storage: std::sync::Arc::new(storage),
     };
