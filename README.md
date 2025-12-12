@@ -196,6 +196,12 @@ curl -X POST "http://localhost:9200/_search" -H 'Content-Type: application/json'
 curl -X GET "http://localhost:9200/_cluster/health"
 ```
 
+#### Get Aliases
+
+```bash
+curl -X GET "http://localhost:9200/_aliases"
+```
+
 #### Check Index Existence
 
 ```bash
@@ -426,6 +432,9 @@ Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints.
 - `POST /_bulk` - Bulk operations
 - `POST /{index}/_bulk` - Bulk operations for specific index
 - `GET /_cluster/health` - Cluster health
+- `GET /_cluster/stats` - Cluster statistics
+- `GET /_cat/indices` - List indices (cat API)
+- `GET /_aliases` - Get index aliases
 
 ### Status
 

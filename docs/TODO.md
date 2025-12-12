@@ -146,8 +146,9 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Return document count per index
   - [x] Support verbose mode (v parameter)
 
-- [ ] **GET /_aliases** - List aliases
-  - [ ] Return index aliases
+- [x] **GET /_aliases** - List aliases
+  - [x] Return index aliases
+  - **Status:** Basic implementation complete, returns empty aliases for all indices (compatible with Elasticsearch format)
 
 ## Implementation Tasks
 
@@ -243,7 +244,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
 6. ✅ Support wildcards in index names - Completed
 7. ✅ Add refresh parameter to bulk operations - Completed
 8. ✅ Create comprehensive documentation - Completed
-9. Implement GET /_aliases endpoint - Medium priority
+9. ✅ Implement GET /_aliases endpoint - Completed
 10. Performance optimizations (inverted index) - Future enhancement
 11. Support aggregations - Optional feature
 

@@ -17,6 +17,7 @@ pub struct Index {
     pub settings: Option<serde_json::Value>,
     pub mappings: Option<serde_json::Value>,
     pub documents: HashMap<String, serde_json::Value>,
+    pub aliases: Vec<String>, // List of alias names for this index
 }
 
 impl Index {
@@ -26,6 +27,7 @@ impl Index {
             settings,
             mappings,
             documents: HashMap::new(),
+            aliases: Vec::new(),
         }
     }
 }
@@ -219,6 +221,29 @@ impl Storage {
         indices.iter()
             .map(|(name, index)| (name.clone(), index.documents.len()))
             .collect()
+    }
+
+    /// Get aliases for all indices
+    /// Returns a JSON object mapping index names to their aliases
+    pub async fn get_aliases(&self) -> serde_json::Value {
+        let indices = self.indices.read().await;
+        let mut result = serde_json::Map::new();
+
+        for (index_name, index) in indices.iter() {
+            let mut aliases_map = serde_json::Map::new();
+            for alias in &index.aliases {
+                aliases_map.insert(alias.clone(), serde_json::json!({}));
+            }
+
+            result.insert(
+                index_name.clone(),
+                serde_json::json!({
+                    "aliases": serde_json::Value::Object(aliases_map)
+                }),
+            );
+        }
+
+        serde_json::Value::Object(result)
     }
 
     /// Get cluster statistics
@@ -1825,7 +1850,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);
@@ -1844,7 +1869,7 @@ mod tests {
             "match_all": {}
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 2);
@@ -1864,12 +1889,12 @@ mod tests {
         let query = serde_json::json!({ "match_all": {} });
 
         // First page
-        let result = storage.search("test_index", &query, Some(0), Some(5), None).await.unwrap();
+        let result = storage.search("test_index", &query, Some(0), Some(5), None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
         assert_eq!(hits.len(), 5);
 
         // Second page
-        let result = storage.search("test_index", &query, Some(5), Some(5), None).await.unwrap();
+        let result = storage.search("test_index", &query, Some(5), Some(5), None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
         assert_eq!(hits.len(), 5);
     }
@@ -1894,7 +1919,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);
@@ -1926,7 +1951,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);
@@ -2014,7 +2039,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, Some(&sort)).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, Some(&sort), None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 3);
@@ -2045,7 +2070,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);
@@ -2077,7 +2102,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);
@@ -2112,7 +2137,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 2);
@@ -2148,7 +2173,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
 
         assert_eq!(hits.len(), 1);

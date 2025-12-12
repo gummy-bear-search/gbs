@@ -530,4 +530,39 @@ mod tests {
         // Test that refresh_index method exists and works
         storage.refresh_index("test_index").await.unwrap();
     }
+
+    // Integration test: Aliases endpoint
+    #[tokio::test]
+    async fn test_integration_aliases() {
+        let storage = Storage::new();
+
+        // Create multiple indices
+        storage.create_index("index1", None, None).await.unwrap();
+        storage.create_index("index2", None, None).await.unwrap();
+        storage.create_index("index3", None, None).await.unwrap();
+
+        // Get aliases (should return empty aliases for all indices)
+        let aliases = storage.get_aliases().await;
+
+        // Verify structure
+        assert!(aliases.is_object());
+        let aliases_obj = aliases.as_object().unwrap();
+
+        // Should have all three indices
+        assert!(aliases_obj.contains_key("index1"));
+        assert!(aliases_obj.contains_key("index2"));
+        assert!(aliases_obj.contains_key("index3"));
+
+        // Each index should have an "aliases" field
+        let index1_aliases = aliases_obj.get("index1").unwrap();
+        assert!(index1_aliases.get("aliases").is_some());
+        let index1_aliases_obj = index1_aliases.get("aliases").unwrap().as_object().unwrap();
+        assert_eq!(index1_aliases_obj.len(), 0); // No aliases yet
+
+        // Same for other indices
+        let index2_aliases = aliases_obj.get("index2").unwrap();
+        assert!(index2_aliases.get("aliases").is_some());
+        let index2_aliases_obj = index2_aliases.get("aliases").unwrap().as_object().unwrap();
+        assert_eq!(index2_aliases_obj.len(), 0);
+    }
 }

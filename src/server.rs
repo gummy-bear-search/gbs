@@ -25,6 +25,7 @@ pub async fn create_app(state: AppState) -> Router {
         .route("/_cluster/health", get(cluster_health))
         .route("/_cluster/stats", get(cluster_stats))
         .route("/_cat/indices", get(cat_indices))
+        .route("/_aliases", get(get_aliases))
         .route("/:index", put(create_index))
         .route("/:index", head(check_index))
         .route("/:index", get(get_index))
@@ -104,6 +105,12 @@ async fn cat_indices(
         let output: Vec<String> = stats.iter().map(|(name, _)| name.clone()).collect();
         Ok(output.join("\n") + "\n")
     }
+}
+
+async fn get_aliases(State(state): State<AppState>) -> Result<Json<serde_json::Value>> {
+    info!("Getting index aliases");
+    let aliases = state.storage.get_aliases().await;
+    Ok(Json(aliases))
 }
 
 async fn create_index(

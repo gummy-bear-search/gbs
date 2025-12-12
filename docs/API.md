@@ -665,6 +665,33 @@ green  open   my_index  -     1   0   100       0b
 curl -X GET "http://localhost:9200/_cat/indices?v"
 ```
 
+#### Get Aliases
+**Endpoint:** `GET /_aliases`
+
+**Description:** Returns aliases for all indices. Currently returns empty aliases for all indices (alias management not yet implemented).
+
+**Response:**
+```json
+{
+  "index1": {
+    "aliases": {}
+  },
+  "index2": {
+    "aliases": {
+      "alias1": {},
+      "alias2": {}
+    }
+  }
+}
+```
+
+**Example:**
+```bash
+curl -X GET "http://localhost:9200/_aliases"
+```
+
+**Note:** Alias management (creating/updating/deleting aliases) is not yet implemented. This endpoint currently returns empty aliases for all indices, maintaining compatibility with Elasticsearch's response format.
+
 ## Error Codes
 
 - **200 OK**: Successful operation
