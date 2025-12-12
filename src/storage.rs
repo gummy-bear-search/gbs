@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 use tracing::{info, debug, warn, error};
 use regex::Regex;
+use chrono::Utc;
 
 use crate::error::{GummySearchError, Result};
 use crate::bulk_ops::BulkAction;
@@ -153,6 +154,142 @@ impl Storage {
     pub async fn list_indices(&self) -> Vec<String> {
         let indices = self.indices.read().await;
         indices.keys().cloned().collect()
+    }
+
+    /// Get statistics for all indices
+    pub async fn get_indices_stats(&self) -> Vec<(String, usize)> {
+        let indices = self.indices.read().await;
+        indices.iter()
+            .map(|(name, index)| (name.clone(), index.documents.len()))
+            .collect()
+    }
+
+    /// Get cluster statistics
+    pub async fn get_cluster_stats(&self) -> serde_json::Value {
+        let indices = self.indices.read().await;
+        let total_indices = indices.len();
+        let total_docs: usize = indices.values().map(|idx| idx.documents.len()).sum();
+
+        serde_json::json!({
+            "cluster_name": "gummy-search",
+            "cluster_uuid": "gummy-search-cluster",
+            "timestamp": Utc::now().timestamp_millis(),
+            "status": "green",
+            "indices": {
+                "count": total_indices,
+                "shards": {
+                    "total": total_indices,
+                    "primaries": total_indices,
+                    "replication": 0,
+                    "index": {
+                        "shards": {
+                            "min": 1,
+                            "max": 1,
+                            "avg": 1.0
+                        },
+                        "primaries": {
+                            "min": 1,
+                            "max": 1,
+                            "avg": 1.0
+                        },
+                        "replication": {
+                            "min": 0,
+                            "max": 0,
+                            "avg": 0.0
+                        }
+                    }
+                },
+                "docs": {
+                    "count": total_docs,
+                    "deleted": 0
+                },
+                "store": {
+                    "size_in_bytes": 0,
+                    "throttle_time_in_millis": 0
+                },
+                "fielddata": {
+                    "memory_size_in_bytes": 0,
+                    "evictions": 0
+                },
+                "query_cache": {
+                    "memory_size_in_bytes": 0,
+                    "total_count": 0,
+                    "hit_count": 0,
+                    "miss_count": 0,
+                    "cache_size": 0,
+                    "cache_count": 0,
+                    "evictions": 0
+                },
+                "completion": {
+                    "size_in_bytes": 0
+                },
+                "segments": {
+                    "count": 0,
+                    "memory_in_bytes": 0,
+                    "terms_memory_in_bytes": 0,
+                    "stored_fields_memory_in_bytes": 0,
+                    "term_vectors_memory_in_bytes": 0,
+                    "norms_memory_in_bytes": 0,
+                    "points_memory_in_bytes": 0,
+                    "doc_values_memory_in_bytes": 0,
+                    "index_writer_memory_in_bytes": 0,
+                    "version_map_memory_in_bytes": 0,
+                    "fixed_bit_set_memory_in_bytes": 0,
+                    "max_unsafe_auto_id_timestamp": -1,
+                    "file_sizes": {}
+                },
+                "mappings": {
+                    "field_types": [],
+                    "runtime_field_types": []
+                },
+                "analysis": {
+                    "char_filter_types": [],
+                    "tokenizer_types": [],
+                    "filter_types": [],
+                    "analyzer_types": [],
+                    "built_in_char_filters": [],
+                    "built_in_tokenizers": [],
+                    "built_in_filters": [],
+                    "built_in_analyzers": []
+                }
+            },
+            "nodes": {
+                "count": {
+                    "total": 1,
+                    "data": 1,
+                    "coordinating_only": 0,
+                    "master": 1,
+                    "ingest": 1
+                },
+                "versions": ["8.0.0"],
+                "os": {
+                    "available_processors": num_cpus::get(),
+                    "allocated_processors": num_cpus::get(),
+                    "names": []
+                },
+                "process": {
+                    "cpu": {
+                        "percent": 0
+                    },
+                    "open_file_descriptors": {
+                        "min": 0,
+                        "max": 0,
+                        "avg": 0
+                    }
+                },
+                "jvm": {
+                    "max_uptime_in_millis": 0,
+                    "versions": []
+                },
+                "fs": {
+                    "total_in_bytes": 0,
+                    "free_in_bytes": 0,
+                    "available_in_bytes": 0
+                },
+                "plugins": [],
+                "network_types": {}
+            }
+        })
     }
 
     pub async fn update_mapping(
@@ -509,6 +646,7 @@ impl Storage {
     /// - bool query (must, should, must_not, filter)
     /// - Pagination (from, size)
     /// - Sorting
+    /// - _source filtering
     pub async fn search(
         &self,
         index_name: &str,
@@ -516,6 +654,7 @@ impl Storage {
         from: Option<u32>,
         size: Option<u32>,
         sort: Option<&serde_json::Value>,
+        source_filter: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
         debug!("Searching index '{}' with query: {}", index_name, serde_json::to_string(query).unwrap_or_default());
         let indices = self.indices.read().await;
@@ -577,16 +716,17 @@ impl Storage {
             Some(paginated_docs[0].2)
         };
 
-        // Build hits
+        // Build hits with _source filtering
         let hits: Vec<serde_json::Value> = paginated_docs
             .into_iter()
             .map(|(id, doc, score)| {
+                let filtered_source = self.filter_source(&doc, source_filter);
                 serde_json::json!({
                     "_index": index_name,
                     "_type": "_doc",
                     "_id": id,
                     "_score": score,
-                    "_source": doc
+                    "_source": filtered_source
                 })
             })
             .collect();
@@ -1173,6 +1313,83 @@ impl Storage {
         }
 
         false
+    }
+
+    /// Filter _source field based on _source specification
+    ///
+    /// Supports:
+    /// - true: include all fields (default)
+    /// - false: exclude all fields (return empty object)
+    /// - ["field1", "field2"]: include only specified fields
+    /// - {"includes": ["field1"], "excludes": ["field2"]}: include/exclude pattern
+    fn filter_source(&self, doc: &serde_json::Value, source_filter: Option<&serde_json::Value>) -> serde_json::Value {
+        let Some(filter) = source_filter else {
+            return doc.clone();
+        };
+
+        // Handle boolean values
+        if let Some(include) = filter.as_bool() {
+            if include {
+                return doc.clone();
+            } else {
+                return serde_json::json!({});
+            }
+        }
+
+        // Handle array of field names
+        if let Some(fields) = filter.as_array() {
+            let mut result = serde_json::Map::new();
+            if let Some(doc_obj) = doc.as_object() {
+                for field in fields {
+                    if let Some(field_name) = field.as_str() {
+                        if let Some(value) = doc_obj.get(field_name) {
+                            result.insert(field_name.to_string(), value.clone());
+                        }
+                    }
+                }
+            }
+            return serde_json::Value::Object(result);
+        }
+
+        // Handle object with includes/excludes
+        if let Some(filter_obj) = filter.as_object() {
+            let mut result = doc.clone();
+
+            // Apply excludes first
+            if let Some(excludes) = filter_obj.get("excludes") {
+                if let Some(exclude_array) = excludes.as_array() {
+                    if let Some(result_obj) = result.as_object_mut() {
+                        for exclude_field in exclude_array {
+                            if let Some(field_name) = exclude_field.as_str() {
+                                result_obj.remove(field_name);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply includes (if specified, only include those fields)
+            if let Some(includes) = filter_obj.get("includes") {
+                if let Some(include_array) = includes.as_array() {
+                    let mut filtered = serde_json::Map::new();
+                    if let Some(result_obj) = result.as_object() {
+                        for include_field in include_array {
+                            if let Some(field_name) = include_field.as_str() {
+                                if let Some(value) = result_obj.get(field_name) {
+                                    filtered.insert(field_name.to_string(), value.clone());
+                                }
+                            }
+                        }
+                    }
+                    result = serde_json::Value::Object(filtered);
+                }
+            }
+
+            return result;
+        }
+
+        // Default: return full document
+        doc.clone()
     }
 
     /// Score a bool query

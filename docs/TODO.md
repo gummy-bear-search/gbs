@@ -103,7 +103,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [ ] Support highlighting
   - [ ] Support aggregations (optional)
   - [x] Return _score for relevance
-  - [ ] Support _source filtering
+  - [x] Support _source filtering
   - [x] Support match_all query
   - **Status:** Core search implemented with 6 query types, additional types pending
 
@@ -134,16 +134,16 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Return node count
   - [x] Return index count
 
-- [ ] **GET /_cluster/stats** - Cluster statistics
-  - [ ] Statistics by indices
-  - [ ] Statistics by nodes
-  - [ ] Memory usage
+- [x] **GET /_cluster/stats** - Cluster statistics
+  - [x] Statistics by indices
+  - [x] Statistics by nodes
+  - [x] Basic cluster information
 
 ### Index Listing
-- [ ] **GET /_cat/indices?v** - List indices
-  - [ ] List all indices
-  - [ ] Return document count per index
-  - [ ] Return size per index
+- [x] **GET /_cat/indices?v** - List indices
+  - [x] List all indices
+  - [x] Return document count per index
+  - [x] Support verbose mode (v parameter)
 
 - [ ] **GET /_aliases** - List aliases
   - [ ] Return index aliases
@@ -234,9 +234,9 @@ This document tracks the development progress and tasks for the Gummy Search pro
 
 ### Next Priorities
 1. ✅ Add remaining query types (wildcard, prefix, terms) - Completed
-2. Add _source filtering for search results - High priority
-3. Implement GET /_cat/indices endpoint - Useful for monitoring
-4. Implement GET /_cluster/stats endpoint - Useful for monitoring
+2. ✅ Add _source filtering for search results - Completed
+3. ✅ Implement GET /_cat/indices endpoint - Completed
+4. ✅ Implement GET /_cluster/stats endpoint - Completed
 5. Add search highlighting - Nice to have
 6. Performance optimizations (inverted index) - Future enhancement
 

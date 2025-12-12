@@ -32,7 +32,9 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
   - Pagination (from, size)
   - Sorting
   - Multi-index search
+  - _source filtering (include/exclude fields)
 - **Cluster Health**: Health check endpoint
+- **Monitoring**: Cluster stats and index listing endpoints
 - **HTTP Server**: Built with Axum, async/await support
 - **Persistent Storage**: Sled-based persistent storage (data survives restarts)
 - **Logging**: Comprehensive logging throughout codebase
@@ -40,7 +42,6 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 
 ### 🚧 In Progress
 - Search highlighting
-- _source filtering
 
 ### 📋 Planned
 - Search highlighting

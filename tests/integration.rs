@@ -35,7 +35,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -46,7 +46,7 @@ mod tests {
 
         // Test pagination
         let query_all = serde_json::json!({ "match_all": {} });
-        let result = storage.search("test_index", &query_all, Some(0), Some(1), None).await.unwrap();
+        let result = storage.search("test_index", &query_all, Some(0), Some(1), None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -132,7 +132,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -153,7 +153,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -191,7 +191,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -211,7 +211,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -252,7 +252,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -267,7 +267,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -299,12 +299,82 @@ mod tests {
             }
         });
 
-        let result3 = storage.search("test_index", &query3, None, None, None).await.unwrap();
+        let result3 = storage.search("test_index", &query3, None, None, None, None).await.unwrap();
         let hits3 = result3.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
             .unwrap();
 
         assert_eq!(hits3.len(), 2);
+    }
+
+    // Integration test: _source filtering
+    #[tokio::test]
+    async fn test_integration_source_filtering() {
+        let storage = Storage::new();
+        storage.create_index("test_index", None, None).await.unwrap();
+
+        storage.index_document("test_index", "1", serde_json::json!({
+            "title": "Rust Programming",
+            "author": "John Doe",
+            "year": 2023,
+            "tags": ["rust", "programming"]
+        })).await.unwrap();
+
+        storage.index_document("test_index", "2", serde_json::json!({
+            "title": "Python Tutorial",
+            "author": "Jane Smith",
+            "year": 2024,
+            "tags": ["python", "tutorial"]
+        })).await.unwrap();
+
+        // Test: _source = false (exclude all fields)
+        let query = serde_json::json!({
+            "match_all": {}
+        });
+        let source_filter = Some(serde_json::json!(false));
+
+        let result = storage.search("test_index", &query, None, None, None, source_filter.as_ref()).await.unwrap();
+        let hits = result.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .unwrap();
+
+        assert_eq!(hits.len(), 2);
+        let source1 = hits[0].get("_source").unwrap();
+        assert!(source1.as_object().unwrap().is_empty());
+
+        // Test: _source = ["title", "author"] (include only specified fields)
+        let source_filter2 = Some(serde_json::json!(["title", "author"]));
+        let result2 = storage.search("test_index", &query, None, None, None, source_filter2.as_ref()).await.unwrap();
+        let hits2 = result2.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .unwrap();
+
+        assert_eq!(hits2.len(), 2);
+        let source2 = hits2[0].get("_source").unwrap();
+        let source_obj = source2.as_object().unwrap();
+        assert!(source_obj.contains_key("title"));
+        assert!(source_obj.contains_key("author"));
+        assert!(!source_obj.contains_key("year"));
+        assert!(!source_obj.contains_key("tags"));
+
+        // Test: _source = {"includes": ["title"], "excludes": ["author"]}
+        let source_filter3 = Some(serde_json::json!({
+            "includes": ["title"],
+            "excludes": ["author"]
+        }));
+        let result3 = storage.search("test_index", &query, None, None, None, source_filter3.as_ref()).await.unwrap();
+        let hits3 = result3.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .unwrap();
+
+        assert_eq!(hits3.len(), 2);
+        let source3 = hits3[0].get("_source").unwrap();
+        let source_obj3 = source3.as_object().unwrap();
+        assert!(source_obj3.contains_key("title"));
+        assert!(!source_obj3.contains_key("author"));
     }
 }

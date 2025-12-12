@@ -23,6 +23,8 @@ pub async fn create_app(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/_cluster/health", get(cluster_health))
+        .route("/_cluster/stats", get(cluster_stats))
+        .route("/_cat/indices", get(cat_indices))
         .route("/:index", put(create_index))
         .route("/:index", head(check_index))
         .route("/:index", get(get_index))
@@ -66,6 +68,42 @@ async fn cluster_health(State(_state): State<AppState>) -> Json<serde_json::Valu
         "task_max_waiting_in_queue_millis": 0,
         "active_shards_percent_as_number": 100.0
     }))
+}
+
+async fn cluster_stats(State(state): State<AppState>) -> Result<Json<serde_json::Value>> {
+    info!("Getting cluster statistics");
+    let stats = state.storage.get_cluster_stats().await;
+    Ok(Json(stats))
+}
+
+async fn cat_indices(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<String> {
+    info!("Getting indices list (cat format)");
+    let stats = state.storage.get_indices_stats().await;
+
+    // Check if verbose mode (v parameter)
+    let verbose = params.contains_key("v");
+
+    if verbose {
+        // Header row
+        let mut output = String::from("health status index uuid pri rep docs.count store.size\n");
+
+        // Data rows
+        for (name, doc_count) in stats {
+            output.push_str(&format!(
+                "green   open   {}   -   1   0   {}b\n",
+                name, doc_count
+            ));
+        }
+
+        Ok(output)
+    } else {
+        // Simple format: just index names
+        let output: Vec<String> = stats.iter().map(|(name, _)| name.clone()).collect();
+        Ok(output.join("\n") + "\n")
+    }
 }
 
 async fn create_index(
@@ -326,8 +364,9 @@ async fn search_get(
     let from = params.get("from").and_then(|s| s.parse::<u32>().ok());
     let size = params.get("size").and_then(|s| s.parse::<u32>().ok());
     let sort = None; // TODO: Parse sort from query params if needed
+    let source_filter = None; // TODO: Parse _source from query params if needed
 
-    let result = state.storage.search(&index, &query, from, size, sort).await?;
+    let result = state.storage.search(&index, &query, from, size, sort, source_filter).await?;
     Ok(Json(result))
 }
 
@@ -345,8 +384,9 @@ async fn search_post(
     let from = body.get("from").and_then(|v| v.as_u64()).map(|v| v as u32);
     let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
     let sort = body.get("sort");
+    let source_filter = body.get("_source");
 
-    let result = state.storage.search(&index, &query, from, size, sort).await?;
+    let result = state.storage.search(&index, &query, from, size, sort, source_filter).await?;
     Ok(Json(result))
 }
 
@@ -364,6 +404,7 @@ async fn search_multi_index(
     let from = body.get("from").and_then(|v| v.as_u64()).map(|v| v as u32);
     let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
     let sort = body.get("sort");
+    let source_filter = body.get("_source");
 
     // Get all indices and search each one
     let index_names = state.storage.list_indices().await;
@@ -371,7 +412,7 @@ async fn search_multi_index(
     let mut total_took = 0u32;
 
     for index_name in &index_names {
-        let index_result = state.storage.search(index_name, &query, None, None, sort).await?;
+        let index_result = state.storage.search(index_name, &query, None, None, sort, source_filter).await?;
         if let Some(hits) = index_result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array()) {
