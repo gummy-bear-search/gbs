@@ -8,7 +8,7 @@ use axum::{
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, debug, error};
 
 use crate::error::{GummySearchError, Result};
 use crate::storage::Storage;
@@ -87,9 +87,20 @@ async fn check_index(
     State(state): State<AppState>,
     Path(index): Path<String>,
 ) -> StatusCode {
+    debug!("Checking existence of index: {}", index);
     match state.storage.index_exists(&index).await {
-        Ok(true) => StatusCode::OK,
-        _ => StatusCode::NOT_FOUND,
+        Ok(true) => {
+            debug!("Index '{}' exists", index);
+            StatusCode::OK
+        }
+        Ok(false) => {
+            debug!("Index '{}' does not exist", index);
+            StatusCode::NOT_FOUND
+        }
+        Err(e) => {
+            error!("Error checking index '{}': {}", index, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 }
 
@@ -189,7 +200,9 @@ async fn get_document(
     State(state): State<AppState>,
     Path((index, id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>> {
+    debug!("Getting document '{}' from index '{}'", id, index);
     let doc = state.storage.get_document(&index, &id).await?;
+    debug!("Document '{}' retrieved successfully", id);
     Ok(Json(doc))
 }
 
@@ -207,6 +220,7 @@ async fn bulk_operations(
     body: String,
 ) -> Result<Json<BulkResponse>> {
     info!("Bulk operations for index: {:?}", index);
+    debug!("Bulk request body length: {} bytes", body.len());
 
     let start_time = std::time::Instant::now();
     let actions = parse_bulk_ndjson(&body, index.as_deref())?;
@@ -290,9 +304,11 @@ async fn search_get(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>> {
     info!("Search GET for index: {}", index);
+    debug!("Search query parameters: {:?}", params);
 
     // Parse query from query parameters or use match_all
     let query = if let Some(q) = params.get("q") {
+        debug!("Using query string: {}", q);
         // Simple query string: search in all fields
         serde_json::json!({
             "match": {
@@ -300,6 +316,7 @@ async fn search_get(
             }
         })
     } else {
+        debug!("No query string, using match_all");
         // Default to match_all
         serde_json::json!({
             "match_all": {}
@@ -320,6 +337,7 @@ async fn search_post(
     body: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>> {
     info!("Search POST for index: {}", index);
+    debug!("Search query: {}", serde_json::to_string(&body.0).unwrap_or_default());
 
     let query = body.get("query").cloned().unwrap_or_else(|| {
         serde_json::json!({ "match_all": {} })

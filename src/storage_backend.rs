@@ -3,6 +3,7 @@ use serde_json;
 use sled::Db;
 use std::path::Path;
 use std::sync::Arc;
+use tracing::{debug, warn};
 
 /// Key prefixes for different data types
 const INDEX_PREFIX: &str = "index:";
@@ -40,6 +41,7 @@ impl SledBackend {
         settings: Option<&serde_json::Value>,
         mappings: Option<&serde_json::Value>,
     ) -> Result<()> {
+        debug!("Storing index metadata for '{}'", index_name);
         let key = format!("{}:{}", INDEX_PREFIX, index_name);
         let metadata = serde_json::json!({
             "name": index_name,
@@ -48,9 +50,16 @@ impl SledBackend {
         });
         let value = serde_json::to_vec(&metadata)?;
         self.db.insert(key.as_bytes(), value)
-            .map_err(|e| GummySearchError::Storage(format!("Failed to store index metadata: {}", e)))?;
+            .map_err(|e| {
+                warn!("Failed to store index metadata for '{}': {}", index_name, e);
+                GummySearchError::Storage(format!("Failed to store index metadata: {}", e))
+            })?;
         self.db.flush()
-            .map_err(|e| GummySearchError::Storage(format!("Failed to flush database: {}", e)))?;
+            .map_err(|e| {
+                warn!("Failed to flush database after storing index '{}': {}", index_name, e);
+                GummySearchError::Storage(format!("Failed to flush database: {}", e))
+            })?;
+        debug!("Index metadata stored successfully for '{}'", index_name);
         Ok(())
     }
 
@@ -87,6 +96,7 @@ impl SledBackend {
 
     /// Delete index metadata
     pub fn delete_index_metadata(&self, index_name: &str) -> Result<()> {
+        debug!("Deleting index metadata for '{}'", index_name);
         let key = format!("{}:{}", INDEX_PREFIX, index_name);
         self.db.remove(key.as_bytes())
             .map_err(sled_error)?;
@@ -98,6 +108,7 @@ impl SledBackend {
             let (key, _) = result.map_err(sled_error)?;
             to_remove.push(key);
         }
+        debug!("Deleting {} documents for index '{}'", to_remove.len(), index_name);
         for key in to_remove {
             self.db.remove(key)
                 .map_err(sled_error)?;
@@ -105,6 +116,7 @@ impl SledBackend {
 
         self.db.flush()
             .map_err(sled_error)?;
+        debug!("Index '{}' deleted successfully from storage", index_name);
         Ok(())
     }
 
@@ -115,11 +127,16 @@ impl SledBackend {
         doc_id: &str,
         document: &serde_json::Value,
     ) -> Result<()> {
+        debug!("Storing document '{}' in index '{}'", doc_id, index_name);
         let key = format!("{}:{}:{}", DOC_PREFIX, index_name, doc_id);
         let value = serde_json::to_vec(document)?;
         self.db.insert(key.as_bytes(), value)
-            .map_err(sled_error)?;
+            .map_err(|e| {
+                warn!("Failed to store document '{}' in index '{}': {}", doc_id, index_name, e);
+                sled_error(e)
+            })?;
         // Don't flush on every document write for performance
+        debug!("Document '{}' stored successfully", doc_id);
         Ok(())
     }
 
