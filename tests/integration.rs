@@ -497,4 +497,37 @@ mod tests {
         assert_eq!(matched4.len(), 1);
         assert!(matched4.contains(&"logs-2024-01".to_string()));
     }
+
+    // Integration test: Bulk operations with refresh parameter
+    #[tokio::test]
+    async fn test_integration_bulk_refresh() {
+        let storage = Storage::new();
+        storage.create_index("test_index", None, None).await.unwrap();
+
+        // Perform bulk operations
+        let bulk_data = r#"{"index":{"_index":"test_index","_id":"1"}}
+{"title":"Document 1"}
+{"index":{"_index":"test_index","_id":"2"}}
+{"title":"Document 2"}
+"#;
+
+        // Note: In integration tests, we can't easily test query parameters
+        // But we can test that bulk operations work and refresh is available
+        use gummy_search::bulk_ops::parse_bulk_ndjson;
+        let actions = parse_bulk_ndjson(bulk_data, None).unwrap();
+
+        for action in actions {
+            let _ = storage.execute_bulk_action(action).await;
+        }
+
+        // Verify documents were indexed
+        let doc1 = storage.get_document("test_index", "1").await.unwrap();
+        assert_eq!(doc1.get("_source").unwrap().get("title").unwrap().as_str().unwrap(), "Document 1");
+
+        let doc2 = storage.get_document("test_index", "2").await.unwrap();
+        assert_eq!(doc2.get("_source").unwrap().get("title").unwrap().as_str().unwrap(), "Document 2");
+
+        // Test that refresh_index method exists and works
+        storage.refresh_index("test_index").await.unwrap();
+    }
 }

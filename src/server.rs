@@ -8,7 +8,7 @@ use axum::{
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{info, debug, error};
+use tracing::{info, debug, error, warn};
 
 use crate::error::{GummySearchError, Result};
 use crate::storage::Storage;
@@ -255,24 +255,43 @@ async fn delete_document(
 async fn bulk_operations(
     State(state): State<AppState>,
     Path(index): Path<Option<String>>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
     body: String,
 ) -> Result<Json<BulkResponse>> {
     info!("Bulk operations for index: {:?}", index);
     debug!("Bulk request body length: {} bytes", body.len());
+
+    // Check refresh parameter
+    let refresh = params.get("refresh")
+        .map(|s| s.as_str())
+        .unwrap_or("false");
 
     let start_time = std::time::Instant::now();
     let actions = parse_bulk_ndjson(&body, index.as_deref())?;
 
     let mut items = Vec::new();
     let mut has_errors = false;
+    let mut affected_indices = std::collections::HashSet::new();
 
     for action in actions {
         // Extract action type and identifiers before executing
         let (action_type, index_name, id) = match &action {
-            BulkAction::Index { index, id, .. } => ("index", index.clone(), id.clone()),
-            BulkAction::Create { index, id, .. } => ("create", index.clone(), id.clone()),
-            BulkAction::Update { index, id, .. } => ("update", index.clone(), Some(id.clone())),
-            BulkAction::Delete { index, id, .. } => ("delete", index.clone(), Some(id.clone())),
+            BulkAction::Index { index, id, .. } => {
+                affected_indices.insert(index.clone());
+                ("index", index.clone(), id.clone())
+            },
+            BulkAction::Create { index, id, .. } => {
+                affected_indices.insert(index.clone());
+                ("create", index.clone(), id.clone())
+            },
+            BulkAction::Update { index, id, .. } => {
+                affected_indices.insert(index.clone());
+                ("update", index.clone(), Some(id.clone()))
+            },
+            BulkAction::Delete { index, id, .. } => {
+                affected_indices.insert(index.clone());
+                ("delete", index.clone(), Some(id.clone()))
+            },
         };
 
         let result = match state.storage.execute_bulk_action(action).await {
@@ -328,6 +347,22 @@ async fn bulk_operations(
     }
 
     let took = start_time.elapsed().as_millis() as u32;
+
+    // Handle refresh parameter
+    if refresh == "true" || refresh == "wait_for" {
+        debug!("Refreshing {} indices after bulk operations", affected_indices.len());
+        // Flush to persistent storage if available
+        if let Err(e) = state.storage.flush().await {
+            warn!("Failed to flush after bulk operations: {}", e);
+        }
+        // Refresh each affected index
+        for index_name in &affected_indices {
+            if let Err(e) = state.storage.refresh_index(index_name).await {
+                warn!("Failed to refresh index '{}' after bulk operations: {}", index_name, e);
+            }
+        }
+        debug!("Refresh completed for bulk operations");
+    }
 
     Ok(Json(BulkResponse {
         took,

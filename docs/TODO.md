@@ -81,7 +81,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Handle NDJSON format
   - [x] Return results for each operation
   - [x] Handle partial errors
-  - [ ] Support refresh parameter (not yet implemented)
+  - [x] Support refresh parameter
 
 - [x] **POST /{index}/_bulk** - Bulk operations for specific index
   - [x] Same as above but with default index

@@ -17,7 +17,7 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 ### ✅ Implemented
 - **Index Management**: Create, get, delete, check existence, update mappings/settings
 - **Document Operations**: Full CRUD (create, read, update, delete)
-- **Bulk Operations**: Mass indexing with NDJSON format support
+- **Bulk Operations**: Mass indexing with NDJSON format support (with refresh parameter)
 - **Search Functionality**:
   - Match query (text search)
   - Match phrase query (exact phrase matching)
@@ -45,7 +45,6 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 - Performance optimizations
 
 ### 📋 Planned
-- Search highlighting
 - Aggregations
 - Inverted index for better search performance
 - Tokenization and text analysis
@@ -403,7 +402,16 @@ docker logs gummy-search
 
 ## API Compatibility
 
-Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints. See [API Requirements](docs/elasticsearch-api-requirements.md) for detailed API endpoint specifications.
+Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints.
+
+## Documentation
+
+- **[API Documentation](docs/API.md)** - Complete API reference with examples
+- **[Usage Examples](docs/USAGE_EXAMPLES.md)** - Practical usage examples and scenarios
+- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design
+- **[API Requirements](docs/elasticsearch-api-requirements.md)** - Detailed API endpoint specifications
+- **[Storage Options](docs/storage-options.md)** - Storage backend documentation
+- **[TODO](docs/TODO.md)** - Development progress and upcoming features
 
 ### Implemented Endpoints
 

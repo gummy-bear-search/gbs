@@ -58,10 +58,22 @@ impl Storage {
     }
 
     /// Flush pending writes to disk (for persistent storage)
-    pub fn flush(&self) -> Result<()> {
+    pub async fn flush(&self) -> Result<()> {
         if let Some(backend) = &self.backend {
-            backend.flush()?;
+            let backend_clone = backend.clone();
+            tokio::task::spawn_blocking(move || {
+                backend_clone.flush()
+            }).await.map_err(GummySearchError::TaskJoin)??;
         }
+        Ok(())
+    }
+
+    /// Refresh an index (flush changes to persistent storage)
+    pub async fn refresh_index(&self, index_name: &str) -> Result<()> {
+        debug!("Refreshing index: {}", index_name);
+        // For persistent storage, flush to disk
+        self.flush().await?;
+        info!("Index '{}' refreshed successfully", index_name);
         Ok(())
     }
 

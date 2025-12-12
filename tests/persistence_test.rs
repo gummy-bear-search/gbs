@@ -27,7 +27,7 @@ mod tests {
             })).await.unwrap();
 
             // Flush to ensure data is written
-            storage.flush().unwrap();
+            storage.flush().await.unwrap();
         }
 
         // Create new storage instance (simulating restart)
@@ -61,7 +61,7 @@ mod tests {
             storage.index_document("index2", "2", serde_json::json!({"data": "two"})).await.unwrap();
 
             // Flush to ensure data is written
-            storage.flush().unwrap();
+            storage.flush().await.unwrap();
         }
 
         {
