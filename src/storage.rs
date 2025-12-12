@@ -156,6 +156,51 @@ impl Storage {
         indices.keys().cloned().collect()
     }
 
+    /// Match index names against a pattern (supports * and ? wildcards)
+    pub async fn match_indices(&self, pattern: &str) -> Vec<String> {
+        let all_indices = self.list_indices().await;
+
+        // Convert pattern to regex
+        let mut regex_pattern = String::new();
+        for c in pattern.chars() {
+            match c {
+                '*' => regex_pattern.push_str(".*"),
+                '?' => regex_pattern.push('.'),
+                '.' => regex_pattern.push_str(r"\."),
+                '+' => regex_pattern.push_str(r"\+"),
+                '(' => regex_pattern.push_str(r"\("),
+                ')' => regex_pattern.push_str(r"\)"),
+                '[' => regex_pattern.push_str(r"\["),
+                ']' => regex_pattern.push_str(r"\]"),
+                '{' => regex_pattern.push_str(r"\{"),
+                '}' => regex_pattern.push_str(r"\}"),
+                '^' => regex_pattern.push_str(r"\^"),
+                '$' => regex_pattern.push_str(r"\$"),
+                '|' => regex_pattern.push_str(r"\|"),
+                '\\' => regex_pattern.push_str(r"\\"),
+                _ => {
+                    let mut buf = [0; 4];
+                    let s = c.encode_utf8(&mut buf);
+                    regex_pattern.push_str(&regex::escape(s));
+                }
+            }
+        }
+
+        let full_pattern = format!("^{}$", regex_pattern);
+
+        match Regex::new(&full_pattern) {
+            Ok(re) => {
+                all_indices.into_iter()
+                    .filter(|name| re.is_match(name))
+                    .collect()
+            }
+            Err(_) => {
+                // Invalid pattern, return empty
+                Vec::new()
+            }
+        }
+    }
+
     /// Get statistics for all indices
     pub async fn get_indices_stats(&self) -> Vec<(String, usize)> {
         let indices = self.indices.read().await;
@@ -655,6 +700,7 @@ impl Storage {
         size: Option<u32>,
         sort: Option<&serde_json::Value>,
         source_filter: Option<&serde_json::Value>,
+        highlight: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
         debug!("Searching index '{}' with query: {}", index_name, serde_json::to_string(query).unwrap_or_default());
         let indices = self.indices.read().await;
@@ -716,18 +762,27 @@ impl Storage {
             Some(paginated_docs[0].2)
         };
 
-        // Build hits with _source filtering
+        // Build hits with _source filtering and highlighting
         let hits: Vec<serde_json::Value> = paginated_docs
             .into_iter()
             .map(|(id, doc, score)| {
                 let filtered_source = self.filter_source(&doc, source_filter);
-                serde_json::json!({
+                let mut hit = serde_json::json!({
                     "_index": index_name,
                     "_type": "_doc",
                     "_id": id,
                     "_score": score,
                     "_source": filtered_source
-                })
+                });
+
+                // Add highlighting if configured
+                if let Some(highlight_config) = highlight {
+                    if let Some(highlight_result) = self.highlight_document(&doc, query, highlight_config) {
+                        hit.as_object_mut().unwrap().insert("highlight".to_string(), highlight_result);
+                    }
+                }
+
+                hit
             })
             .collect();
 
@@ -1390,6 +1445,211 @@ impl Storage {
 
         // Default: return full document
         doc.clone()
+    }
+
+    /// Highlight matched terms in a document based on query and highlight configuration
+    ///
+    /// Returns a JSON object with highlighted fields, e.g.:
+    /// {
+    ///   "title": ["This is a <em>search</em> result"],
+    ///   "body": ["Some <em>search</em> content here"]
+    /// }
+    fn highlight_document(
+        &self,
+        doc: &serde_json::Value,
+        query: &serde_json::Value,
+        highlight_config: &serde_json::Value,
+    ) -> Option<serde_json::Value> {
+        // Extract fields to highlight
+        let fields_to_highlight = if let Some(config_obj) = highlight_config.as_object() {
+            if let Some(fields) = config_obj.get("fields") {
+                if let Some(fields_obj) = fields.as_object() {
+                    fields_obj.keys().collect::<Vec<_>>()
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        };
+
+        // Extract highlight tags (default: <em></em>)
+        let pre_tag = highlight_config
+            .as_object()
+            .and_then(|c| c.get("pre_tags"))
+            .and_then(|t| t.as_array())
+            .and_then(|a| a.get(0))
+            .and_then(|v| v.as_str())
+            .unwrap_or("<em>");
+
+        let post_tag = highlight_config
+            .as_object()
+            .and_then(|c| c.get("post_tags"))
+            .and_then(|t| t.as_array())
+            .and_then(|a| a.get(0))
+            .and_then(|v| v.as_str())
+            .unwrap_or("</em>");
+
+        // Extract query terms from the query
+        let query_terms = self.extract_query_terms(query);
+        if query_terms.is_empty() {
+            return None;
+        }
+
+        // Build highlight result
+        let mut highlight_result = serde_json::Map::new();
+
+        for field in fields_to_highlight {
+            if let Some(field_value) = self.get_field_value(doc, field) {
+                if let Some(field_str) = field_value.as_str() {
+                    let highlighted = self.highlight_text(field_str, &query_terms, pre_tag, post_tag);
+                    if !highlighted.is_empty() {
+                        highlight_result.insert(field.to_string(), serde_json::json!([highlighted]));
+                    }
+                }
+            }
+        }
+
+        if highlight_result.is_empty() {
+            None
+        } else {
+            Some(serde_json::Value::Object(highlight_result))
+        }
+    }
+
+    /// Extract search terms from a query
+    fn extract_query_terms(&self, query: &serde_json::Value) -> Vec<String> {
+        let mut terms = Vec::new();
+
+        if let Some(query_obj) = query.as_object() {
+            // Handle match query
+            if let Some(match_query) = query_obj.get("match") {
+                if let Some(match_obj) = match_query.as_object() {
+                    for (_, query_value) in match_obj {
+                        if let Some(q) = query_value.as_object() {
+                            if let Some(query_text) = q.get("query").and_then(|v| v.as_str()) {
+                                terms.extend(self.tokenize_query(query_text));
+                            }
+                        } else if let Some(query_text) = query_value.as_str() {
+                            terms.extend(self.tokenize_query(query_text));
+                        }
+                    }
+                }
+            }
+
+            // Handle match_phrase query
+            if let Some(match_phrase_query) = query_obj.get("match_phrase") {
+                if let Some(match_phrase_obj) = match_phrase_query.as_object() {
+                    for (_, query_value) in match_phrase_obj {
+                        if let Some(q) = query_value.as_object() {
+                            if let Some(query_text) = q.get("query").and_then(|v| v.as_str()) {
+                                terms.extend(self.tokenize_query(query_text));
+                            }
+                        } else if let Some(query_text) = query_value.as_str() {
+                            terms.extend(self.tokenize_query(query_text));
+                        }
+                    }
+                }
+            }
+
+            // Handle multi_match query
+            if let Some(multi_match_query) = query_obj.get("multi_match") {
+                if let Some(multi_match_obj) = multi_match_query.as_object() {
+                    if let Some(query_text) = multi_match_obj.get("query").and_then(|v| v.as_str()) {
+                        terms.extend(self.tokenize_query(query_text));
+                    }
+                }
+            }
+
+            // Handle term query
+            if let Some(term_query) = query_obj.get("term") {
+                if let Some(term_obj) = term_query.as_object() {
+                    for (_, value) in term_obj {
+                        if let Some(term_str) = value.as_str() {
+                            terms.push(term_str.to_lowercase());
+                        }
+                    }
+                }
+            }
+
+            // Handle bool query - recursively extract from nested queries
+            if let Some(bool_query) = query_obj.get("bool") {
+                if let Some(bool_obj) = bool_query.as_object() {
+                    for clause_type in ["must", "should", "must_not", "filter"] {
+                        if let Some(clauses) = bool_obj.get(clause_type) {
+                            if let Some(clauses_array) = clauses.as_array() {
+                                for clause in clauses_array {
+                                    terms.extend(self.extract_query_terms(clause));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        terms
+    }
+
+    /// Tokenize a query string into terms (simple whitespace splitting)
+    fn tokenize_query(&self, query: &str) -> Vec<String> {
+        query
+            .split_whitespace()
+            .map(|s| s.to_lowercase())
+            .collect()
+    }
+
+    /// Highlight text by wrapping matched terms with tags
+    fn highlight_text(&self, text: &str, terms: &[String], pre_tag: &str, post_tag: &str) -> String {
+        if terms.is_empty() {
+            return text.to_string();
+        }
+
+        let text_lower = text.to_lowercase();
+        let mut result = String::new();
+        let mut last_end = 0;
+
+        // Find all matches and their positions
+        let mut matches: Vec<(usize, usize, &str)> = Vec::new();
+        for term in terms {
+            let term_lower = term.to_lowercase();
+            let mut start = 0;
+            while let Some(pos) = text_lower[start..].find(&term_lower) {
+                let actual_pos = start + pos;
+                let end = actual_pos + term.len();
+                matches.push((actual_pos, end, &text[actual_pos..end]));
+                start = end;
+            }
+        }
+
+        // Sort matches by position
+        matches.sort_by_key(|(start, _, _)| *start);
+
+        // Build highlighted string
+        for (start, end, matched_text) in matches {
+            // Add text before match
+            if start > last_end {
+                result.push_str(&text[last_end..start]);
+            }
+            // Add highlighted match
+            result.push_str(pre_tag);
+            result.push_str(matched_text);
+            result.push_str(post_tag);
+            last_end = end;
+        }
+
+        // Add remaining text
+        if last_end < text.len() {
+            result.push_str(&text[last_end..]);
+        }
+
+        if result.is_empty() {
+            text.to_string()
+        } else {
+            result
+        }
     }
 
     /// Score a bool query

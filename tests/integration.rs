@@ -35,7 +35,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -46,7 +46,7 @@ mod tests {
 
         // Test pagination
         let query_all = serde_json::json!({ "match_all": {} });
-        let result = storage.search("test_index", &query_all, Some(0), Some(1), None, None).await.unwrap();
+        let result = storage.search("test_index", &query_all, Some(0), Some(1), None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -132,7 +132,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -153,7 +153,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -191,7 +191,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -211,7 +211,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -252,7 +252,7 @@ mod tests {
             }
         });
 
-        let result = storage.search("test_index", &query, None, None, None, None).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, None, None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -267,7 +267,7 @@ mod tests {
             }
         });
 
-        let result2 = storage.search("test_index", &query2, None, None, None, None).await.unwrap();
+        let result2 = storage.search("test_index", &query2, None, None, None, None, None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -299,7 +299,7 @@ mod tests {
             }
         });
 
-        let result3 = storage.search("test_index", &query3, None, None, None, None).await.unwrap();
+        let result3 = storage.search("test_index", &query3, None, None, None, None, None).await.unwrap();
         let hits3 = result3.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -334,7 +334,7 @@ mod tests {
         });
         let source_filter = Some(serde_json::json!(false));
 
-        let result = storage.search("test_index", &query, None, None, None, source_filter.as_ref()).await.unwrap();
+        let result = storage.search("test_index", &query, None, None, None, source_filter.as_ref(), None).await.unwrap();
         let hits = result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -346,7 +346,7 @@ mod tests {
 
         // Test: _source = ["title", "author"] (include only specified fields)
         let source_filter2 = Some(serde_json::json!(["title", "author"]));
-        let result2 = storage.search("test_index", &query, None, None, None, source_filter2.as_ref()).await.unwrap();
+        let result2 = storage.search("test_index", &query, None, None, None, source_filter2.as_ref(), None).await.unwrap();
         let hits2 = result2.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -365,7 +365,7 @@ mod tests {
             "includes": ["title"],
             "excludes": ["author"]
         }));
-        let result3 = storage.search("test_index", &query, None, None, None, source_filter3.as_ref()).await.unwrap();
+        let result3 = storage.search("test_index", &query, None, None, None, source_filter3.as_ref(), None).await.unwrap();
         let hits3 = result3.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array())
@@ -376,5 +376,125 @@ mod tests {
         let source_obj3 = source3.as_object().unwrap();
         assert!(source_obj3.contains_key("title"));
         assert!(!source_obj3.contains_key("author"));
+    }
+
+    // Integration test: Search highlighting
+    #[tokio::test]
+    async fn test_integration_highlighting() {
+        let storage = Storage::new();
+        storage.create_index("test_index", None, None).await.unwrap();
+
+        storage.index_document("test_index", "1", serde_json::json!({
+            "title": "Rust Programming Guide",
+            "body": "Learn Rust programming language"
+        })).await.unwrap();
+
+        storage.index_document("test_index", "2", serde_json::json!({
+            "title": "Python Tutorial",
+            "body": "Python is a great language"
+        })).await.unwrap();
+
+        // Test highlighting with match query
+        let query = serde_json::json!({
+            "match": {
+                "title": "Rust"
+            }
+        });
+
+        let highlight_config = Some(serde_json::json!({
+            "fields": {
+                "title": {}
+            }
+        }));
+
+        let result = storage.search("test_index", &query, None, None, None, None, highlight_config.as_ref()).await.unwrap();
+        let hits = result.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .unwrap();
+
+        assert_eq!(hits.len(), 1);
+        let highlight = hits[0].get("highlight");
+        assert!(highlight.is_some());
+
+        let highlight_obj = highlight.unwrap().as_object().unwrap();
+        assert!(highlight_obj.contains_key("title"));
+        let title_highlight = highlight_obj.get("title").unwrap().as_array().unwrap();
+        assert!(title_highlight[0].as_str().unwrap().contains("<em>Rust</em>"));
+
+        // Test highlighting with multiple fields
+        let query2 = serde_json::json!({
+            "match": {
+                "body": "programming"
+            }
+        });
+
+        let highlight_config2 = Some(serde_json::json!({
+            "fields": {
+                "title": {},
+                "body": {}
+            }
+        }));
+
+        let result2 = storage.search("test_index", &query2, None, None, None, None, highlight_config2.as_ref()).await.unwrap();
+        let hits2 = result2.get("hits")
+            .and_then(|h| h.get("hits"))
+            .and_then(|h| h.as_array())
+            .unwrap();
+
+        assert_eq!(hits2.len(), 1);
+        let highlight2 = hits2[0].get("highlight").unwrap().as_object().unwrap();
+        assert!(highlight2.contains_key("body"));
+        let body_highlight = highlight2.get("body").unwrap().as_array().unwrap();
+        assert!(body_highlight[0].as_str().unwrap().contains("<em>programming</em>"));
+    }
+
+    // Integration test: Wildcard index patterns
+    #[tokio::test]
+    async fn test_integration_wildcard_indices() {
+        let storage = Storage::new();
+
+        // Create multiple indices with patterns
+        storage.create_index("logs-2024-01", None, None).await.unwrap();
+        storage.create_index("logs-2024-02", None, None).await.unwrap();
+        storage.create_index("logs-2023-12", None, None).await.unwrap();
+        storage.create_index("data-2024", None, None).await.unwrap();
+
+        // Add documents to each index
+        storage.index_document("logs-2024-01", "1", serde_json::json!({
+            "message": "Log entry 1"
+        })).await.unwrap();
+
+        storage.index_document("logs-2024-02", "2", serde_json::json!({
+            "message": "Log entry 2"
+        })).await.unwrap();
+
+        storage.index_document("data-2024", "3", serde_json::json!({
+            "message": "Data entry"
+        })).await.unwrap();
+
+        // Test wildcard pattern: logs-2024-*
+        let matched = storage.match_indices("logs-2024-*").await;
+        assert_eq!(matched.len(), 2);
+        assert!(matched.contains(&"logs-2024-01".to_string()));
+        assert!(matched.contains(&"logs-2024-02".to_string()));
+        assert!(!matched.contains(&"logs-2023-12".to_string()));
+
+        // Test wildcard pattern: logs-*
+        let matched2 = storage.match_indices("logs-*").await;
+        assert_eq!(matched2.len(), 3);
+        assert!(matched2.contains(&"logs-2024-01".to_string()));
+        assert!(matched2.contains(&"logs-2024-02".to_string()));
+        assert!(matched2.contains(&"logs-2023-12".to_string()));
+
+        // Test wildcard pattern: *-2024
+        let matched3 = storage.match_indices("*-2024").await;
+        assert_eq!(matched3.len(), 1);
+        assert!(matched3.contains(&"data-2024".to_string()));
+
+        // Test single character wildcard: logs-202?-01
+        let matched4 = storage.match_indices("logs-202?-01").await;
+        assert_eq!(matched4.len(), 1);
+        assert!(matched4.contains(&"logs-2024-01".to_string()));
     }
 }

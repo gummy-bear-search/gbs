@@ -365,8 +365,9 @@ async fn search_get(
     let size = params.get("size").and_then(|s| s.parse::<u32>().ok());
     let sort = None; // TODO: Parse sort from query params if needed
     let source_filter = None; // TODO: Parse _source from query params if needed
+    let highlight = None; // TODO: Parse highlight from query params if needed
 
-    let result = state.storage.search(&index, &query, from, size, sort, source_filter).await?;
+    let result = state.storage.search(&index, &query, from, size, sort, source_filter, highlight).await?;
     Ok(Json(result))
 }
 
@@ -385,8 +386,9 @@ async fn search_post(
     let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
     let sort = body.get("sort");
     let source_filter = body.get("_source");
+    let highlight = body.get("highlight");
 
-    let result = state.storage.search(&index, &query, from, size, sort, source_filter).await?;
+    let result = state.storage.search(&index, &query, from, size, sort, source_filter, highlight).await?;
     Ok(Json(result))
 }
 
@@ -396,8 +398,6 @@ async fn search_multi_index(
 ) -> Result<Json<serde_json::Value>> {
     info!("Multi-index search");
 
-    // For now, search all indices
-    // TODO: Support index patterns and specific indices
     let query = body.get("query").cloned().unwrap_or_else(|| {
         serde_json::json!({ "match_all": {} })
     });
@@ -405,14 +405,47 @@ async fn search_multi_index(
     let size = body.get("size").and_then(|v| v.as_u64()).map(|v| v as u32);
     let sort = body.get("sort");
     let source_filter = body.get("_source");
+    let highlight = body.get("highlight");
 
-    // Get all indices and search each one
-    let index_names = state.storage.list_indices().await;
+    // Determine which indices to search
+    let index_names = if let Some(index_spec) = body.get("index") {
+        // Support index specification in request body
+        if let Some(index_str) = index_spec.as_str() {
+            // Handle comma-separated list or wildcard pattern
+            if index_str.contains(',') {
+                // Comma-separated list: "index1,index2"
+                index_str.split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect()
+            } else if index_str.contains('*') || index_str.contains('?') {
+                // Wildcard pattern: "logs-*"
+                state.storage.match_indices(index_str).await
+            } else {
+                // Single index name
+                vec![index_str.to_string()]
+            }
+        } else if let Some(index_array) = index_spec.as_array() {
+            // Array of index names: ["index1", "index2"]
+            index_array.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            // Default: search all indices
+            state.storage.list_indices().await
+        }
+    } else {
+        // No index specified: search all indices
+        state.storage.list_indices().await
+    };
+
+    debug!("Searching {} indices: {:?}", index_names.len(), index_names);
+
     let mut all_hits: Vec<serde_json::Value> = Vec::new();
     let mut total_took = 0u32;
 
     for index_name in &index_names {
-        let index_result = state.storage.search(index_name, &query, None, None, sort, source_filter).await?;
+        let index_result = state.storage.search(index_name, &query, None, None, sort, source_filter, highlight).await?;
         if let Some(hits) = index_result.get("hits")
             .and_then(|h| h.get("hits"))
             .and_then(|h| h.as_array()) {

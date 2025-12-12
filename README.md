@@ -31,8 +31,9 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
   - Match all query
   - Pagination (from, size)
   - Sorting
-  - Multi-index search
+  - Multi-index search (with wildcard patterns)
   - _source filtering (include/exclude fields)
+  - Search highlighting (highlight matched terms)
 - **Cluster Health**: Health check endpoint
 - **Monitoring**: Cluster stats and index listing endpoints
 - **HTTP Server**: Built with Axum, async/await support
@@ -41,7 +42,7 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 - **Testing**: Unit and integration tests
 
 ### 🚧 In Progress
-- Search highlighting
+- Performance optimizations
 
 ### 📋 Planned
 - Search highlighting
@@ -158,6 +159,34 @@ curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: applicat
     "terms": {
       "status": ["published", "draft"]
     }
+  }
+}'
+```
+
+**Search with Highlighting:**
+```bash
+curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "title": "search"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "title": {}
+    }
+  }
+}'
+```
+
+**Multi-Index Search with Wildcards:**
+```bash
+curl -X POST "http://localhost:9200/_search" -H 'Content-Type: application/json' -d'
+{
+  "index": "logs-*",
+  "query": {
+    "match_all": {}
   }
 }'
 ```

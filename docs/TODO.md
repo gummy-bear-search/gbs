@@ -100,7 +100,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Support filters (via bool query)
   - [x] Support sorting
   - [x] Support pagination (from, size)
-  - [ ] Support highlighting
+  - [x] Support highlighting
   - [ ] Support aggregations (optional)
   - [x] Return _score for relevance
   - [x] Support _source filtering
@@ -113,8 +113,9 @@ This document tracks the development progress and tasks for the Gummy Search pro
 
 - [x] **POST /_search** - Multi-index search
   - [x] Search across multiple indices
-  - [ ] Support wildcards in index names
-  - **Status:** Basic multi-index search implemented
+  - [x] Support wildcards in index names
+  - [x] Support comma-separated index lists
+  - **Status:** Full multi-index search with wildcard support implemented
 
 ### Index Refresh
 - [x] **POST /{index}/_refresh** - Refresh index
@@ -228,17 +229,16 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - Data persistence across server restarts
 
 ### In Progress 🚧
-- Additional search query types (wildcard, prefix, terms)
-- Search highlighting
-- _source filtering
+- Performance optimizations
 
 ### Next Priorities
 1. ✅ Add remaining query types (wildcard, prefix, terms) - Completed
 2. ✅ Add _source filtering for search results - Completed
 3. ✅ Implement GET /_cat/indices endpoint - Completed
 4. ✅ Implement GET /_cluster/stats endpoint - Completed
-5. Add search highlighting - Nice to have
-6. Performance optimizations (inverted index) - Future enhancement
+5. ✅ Add search highlighting - Completed
+6. ✅ Support wildcards in index names - Completed
+7. Performance optimizations (inverted index) - Future enhancement
 
 ## Notes
 
