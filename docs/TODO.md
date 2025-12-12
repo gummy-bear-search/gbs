@@ -11,7 +11,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - ✅ **Index Management:** 6/6 endpoints complete
 - ✅ **Document Operations:** 4/4 endpoints complete
 - ✅ **Bulk Operations:** Fully implemented (index, create, update, delete)
-- ✅ **Search:** Basic search implemented (match, match_all, term, bool queries)
+- ✅ **Search:** Core search implemented (match, match_phrase, multi_match, term, terms, range, wildcard, prefix, bool, match_all queries)
 - ✅ **Refresh:** Implemented (no-op for in-memory, works with persistent storage)
 - ✅ **Logging:** Comprehensive logging throughout codebase
 - ✅ **Testing:** Unit and integration tests added
@@ -89,14 +89,14 @@ This document tracks the development progress and tasks for the Gummy Search pro
 ### Search
 - [x] **POST /{index}/_search** - Search documents
   - [x] Implement match query
-  - [ ] Implement match_phrase query
-  - [ ] Implement multi_match query
+  - [x] Implement match_phrase query
+  - [x] Implement multi_match query
   - [x] Implement term query
-  - [ ] Implement terms query
-  - [ ] Implement range query
+  - [x] Implement terms query
+  - [x] Implement range query
   - [x] Implement bool query (must, should, must_not, filter)
-  - [ ] Implement wildcard query
-  - [ ] Implement prefix query
+  - [x] Implement wildcard query
+  - [x] Implement prefix query
   - [x] Support filters (via bool query)
   - [x] Support sorting
   - [x] Support pagination (from, size)
@@ -105,7 +105,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Return _score for relevance
   - [ ] Support _source filtering
   - [x] Support match_all query
-  - **Status:** Basic search implemented, additional query types pending
+  - **Status:** Core search implemented with 6 query types, additional types pending
 
 - [x] **GET /{index}/_search** - Search with GET method
   - [x] Same as POST but with query parameters
@@ -228,17 +228,17 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - Data persistence across server restarts
 
 ### In Progress 🚧
-- Additional search query types (match_phrase, multi_match, range, wildcard, prefix)
+- Additional search query types (wildcard, prefix, terms)
 - Search highlighting
 - _source filtering
 
 ### Next Priorities
-1. Add more search query types (match_phrase, multi_match, range) - High priority
-2. Add _source filtering for search results
-3. Implement GET /_cat/indices endpoint
-4. Implement GET /_cluster/stats endpoint
-5. Add search highlighting
-6. Performance optimizations (inverted index)
+1. ✅ Add remaining query types (wildcard, prefix, terms) - Completed
+2. Add _source filtering for search results - High priority
+3. Implement GET /_cat/indices endpoint - Useful for monitoring
+4. Implement GET /_cluster/stats endpoint - Useful for monitoring
+5. Add search highlighting - Nice to have
+6. Performance optimizations (inverted index) - Future enhancement
 
 ## Notes
 

@@ -17,6 +17,9 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
   - Match phrase query (exact phrase matching)
   - Multi-match query (search across multiple fields)
   - Term query (exact match)
+  - Terms query (match any of multiple values)
+  - Wildcard query (pattern matching with * and ?)
+  - Prefix query (prefix matching)
   - Bool query (must, should, must_not, filter)
   - Range query (numeric/date ranges)
   - Match all query
@@ -30,12 +33,10 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 - **Testing**: Unit and integration tests
 
 ### 🚧 In Progress
-- Additional query types (wildcard, prefix, terms)
 - Search highlighting
 - _source filtering
 
 ### 📋 Planned
-- Advanced query types (wildcard, prefix, terms)
 - Search highlighting
 - Aggregations
 - Inverted index for better search performance
@@ -102,6 +103,56 @@ curl -X POST "http://localhost:9200/my_index/_bulk" -H 'Content-Type: applicatio
 {"title":"Document 2","body":"Content 2"}
 {"delete":{"_id":"1"}}
 '
+```
+
+#### Search Documents
+
+**Match Query:**
+```bash
+curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "title": "example"
+    }
+  }
+}'
+```
+
+**Wildcard Query:**
+```bash
+curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "wildcard": {
+      "title": "*exam*"
+    }
+  }
+}'
+```
+
+**Prefix Query:**
+```bash
+curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "prefix": {
+      "title": "exam"
+    }
+  }
+}'
+```
+
+**Terms Query:**
+```bash
+curl -X POST "http://localhost:9200/my_index/_search" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "terms": {
+      "status": ["published", "draft"]
+    }
+  }
+}'
 ```
 
 #### Check Cluster Health

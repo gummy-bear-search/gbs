@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use tracing::{info, debug, warn, error};
+use regex::Regex;
 
 use crate::error::{GummySearchError, Result};
 use crate::bulk_ops::BulkAction;
@@ -716,6 +717,51 @@ impl Storage {
                 }
             }
 
+            // Handle terms query: { "terms": { "field": ["value1", "value2"] } }
+            if let Some(terms_query) = query_obj.get("terms") {
+                if let Some(terms_obj) = terms_query.as_object() {
+                    for (field, values) in terms_obj {
+                        if let Some(values_array) = values.as_array() {
+                            if self.terms_match(doc, field, values_array) {
+                                return Ok(1.0);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle prefix query: { "prefix": { "field": "prefix" } }
+            if let Some(prefix_query) = query_obj.get("prefix") {
+                if let Some(prefix_obj) = prefix_query.as_object() {
+                    for (field, prefix_value) in prefix_obj {
+                        let prefix_str = if let Some(p) = prefix_value.as_object() {
+                            p.get("value").and_then(|v| v.as_str()).unwrap_or("")
+                        } else {
+                            prefix_value.as_str().unwrap_or("")
+                        };
+                        if self.prefix_match(doc, field, prefix_str) {
+                            return Ok(1.0);
+                        }
+                    }
+                }
+            }
+
+            // Handle wildcard query: { "wildcard": { "field": "pat*ern" } }
+            if let Some(wildcard_query) = query_obj.get("wildcard") {
+                if let Some(wildcard_obj) = wildcard_query.as_object() {
+                    for (field, pattern_value) in wildcard_obj {
+                        let pattern_str = if let Some(p) = pattern_value.as_object() {
+                            p.get("value").and_then(|v| v.as_str()).unwrap_or("")
+                        } else {
+                            pattern_value.as_str().unwrap_or("")
+                        };
+                        if self.wildcard_match(doc, field, pattern_str) {
+                            return Ok(1.0);
+                        }
+                    }
+                }
+            }
+
             // Handle bool query
             if let Some(bool_query) = query_obj.get("bool") {
                 return self.score_bool_query(doc, bool_query);
@@ -1026,6 +1072,107 @@ impl Storage {
         }
 
         true
+    }
+
+    /// Match a field against a wildcard pattern (* matches any sequence, ? matches any single character)
+    fn wildcard_match(&self, doc: &serde_json::Value, field: &str, pattern: &str) -> bool {
+        if pattern.is_empty() {
+            return true;
+        }
+
+        let field_value = match self.get_field_value(doc, field) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        let field_str = match field_value {
+            serde_json::Value::String(s) => s.to_lowercase(), // Case-insensitive matching
+            serde_json::Value::Number(_n) => return false, // Wildcard only works on strings
+            serde_json::Value::Bool(_b) => return false,
+            _ => return false,
+        };
+
+        let pattern_lower = pattern.to_lowercase();
+
+        // Convert wildcard pattern to regex
+        // * -> .* (matches any sequence)
+        // ? -> . (matches any single character)
+        // Escape other regex special characters
+        let mut regex_pattern = String::new();
+        for c in pattern_lower.chars() {
+            match c {
+                '*' => regex_pattern.push_str(".*"),
+                '?' => regex_pattern.push('.'),
+                '.' => regex_pattern.push_str(r"\."),
+                '+' => regex_pattern.push_str(r"\+"),
+                '(' => regex_pattern.push_str(r"\("),
+                ')' => regex_pattern.push_str(r"\)"),
+                '[' => regex_pattern.push_str(r"\["),
+                ']' => regex_pattern.push_str(r"\]"),
+                '{' => regex_pattern.push_str(r"\{"),
+                '}' => regex_pattern.push_str(r"\}"),
+                '^' => regex_pattern.push_str(r"\^"),
+                '$' => regex_pattern.push_str(r"\$"),
+                '|' => regex_pattern.push_str(r"\|"),
+                '\\' => regex_pattern.push_str(r"\\"),
+                _ => {
+                    let mut buf = [0; 4];
+                    let s = c.encode_utf8(&mut buf);
+                    regex_pattern.push_str(&regex::escape(s));
+                }
+            }
+        }
+
+        // Anchor the pattern to match the entire string
+        let full_pattern = format!("^{}$", regex_pattern);
+
+        match Regex::new(&full_pattern) {
+            Ok(re) => re.is_match(&field_str),
+            Err(_) => false, // Invalid regex pattern
+        }
+    }
+
+    /// Match a field against a prefix (case-insensitive)
+    fn prefix_match(&self, doc: &serde_json::Value, field: &str, prefix: &str) -> bool {
+        if prefix.is_empty() {
+            return true;
+        }
+
+        let field_value = match self.get_field_value(doc, field) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        let field_str = match field_value {
+            serde_json::Value::String(s) => s.to_lowercase(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            _ => return false,
+        };
+
+        let prefix_lower = prefix.to_lowercase();
+        field_str.starts_with(&prefix_lower)
+    }
+
+    /// Match a field against any of multiple values
+    fn terms_match(&self, doc: &serde_json::Value, field: &str, values: &[serde_json::Value]) -> bool {
+        if values.is_empty() {
+            return true;
+        }
+
+        let field_value = match self.get_field_value(doc, field) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        // Check if field value matches any of the provided values
+        for value in values {
+            if *field_value == *value {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Score a bool query

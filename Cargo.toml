@@ -20,6 +20,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["v4"] }
 sled = "0.34"
 async-trait = "0.1"
+regex = "1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
