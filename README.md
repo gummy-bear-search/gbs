@@ -185,10 +185,51 @@ make build-release
 
 The server will start on `http://localhost:9200` by default.
 
-### Environment Variables
+### Configuration
 
-- `RUST_LOG` - Set logging level (e.g., `RUST_LOG=info`, `RUST_LOG=debug`)
-- `PORT` - Server port (default: 9200) - *Not yet configurable, hardcoded to 9200*
+Gummy Search supports configuration via YAML file or environment variables.
+
+#### Configuration File
+
+Create a `gummy-search.yaml` file in the project root (or copy `gummy-search.yaml.example`):
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 9200
+
+storage:
+  data_dir: "./data"
+
+logging:
+  level: "info"
+```
+
+**Config file search order:**
+1. Path specified in `GUMMY_CONFIG` environment variable
+2. `./gummy-search.yaml`
+3. `./config/gummy-search.yaml`
+4. `~/.config/gummy-search/gummy-search.yaml`
+
+#### Environment Variables
+
+Environment variables override config file values (highest priority):
+
+- `GUMMY_CONFIG` - Path to config file
+- `GUMMY_HOST` - Server host (default: "0.0.0.0")
+- `GUMMY_PORT` - Server port (default: 9200)
+- `GUMMY_DATA_DIR` - Data directory path (default: "./data")
+- `GUMMY_LOG_LEVEL` - Log level (default: "info")
+- `RUST_LOG` - Log level (takes precedence over `GUMMY_LOG_LEVEL` and config file)
+
+**Example:**
+```bash
+# Use custom port via environment variable
+GUMMY_PORT=9300 cargo run
+
+# Use custom config file
+GUMMY_CONFIG=/path/to/config.yaml cargo run
+```
 
 ## Development
 

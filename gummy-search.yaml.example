@@ -1,0 +1,22 @@
+# Gummy Search Configuration File
+# Copy this file to gummy-search.yaml and customize as needed
+
+# Server configuration
+server:
+  # Server host (default: "0.0.0.0")
+  host: "0.0.0.0"
+  # Server port (default: 9200)
+  port: 9200
+
+# Storage configuration
+storage:
+  # Data directory path (default: "./data")
+  # This is where Sled will store persistent data
+  data_dir: "./data"
+
+# Logging configuration
+logging:
+  # Log level (default: "info")
+  # Valid values: trace, debug, info, warn, error
+  # Note: RUST_LOG environment variable takes precedence if set
+  level: "info"

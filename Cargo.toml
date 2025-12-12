@@ -21,6 +21,8 @@ uuid = { version = "1.0", features = ["v4"] }
 sled = "0.34"
 async-trait = "0.1"
 regex = "1.0"
+serde_yaml = "0.9"
+dirs = "5.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -13,3 +13,7 @@ Cargo.lock
 # OS
 .DS_Store
 Thumbs.db
+
+# Config files (keep .example files)
+gummy-search.yaml
+config/gummy-search.yaml
