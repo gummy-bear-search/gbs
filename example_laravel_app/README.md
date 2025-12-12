@@ -15,10 +15,27 @@ This is an example Laravel application demonstrating how to use Gummy Search wit
 
 ### Prerequisites
 
-- PHP 8.1+
-- Composer
+- PHP 8.1+ (or Docker)
+- Composer (or Docker)
 - Laravel 10+
 - Gummy Search server running on `http://localhost:9200`
+
+### Docker Setup (Recommended)
+
+See [DOCKER.md](DOCKER.md) for complete Docker setup instructions.
+
+Quick start:
+```bash
+docker-compose up -d --build
+docker-compose exec app composer install
+docker-compose exec app php artisan key:generate
+docker-compose exec app php artisan migrate
+docker-compose exec app php artisan seed:wikipedia
+docker-compose exec app php artisan elastic:create-index
+docker-compose exec app php artisan scout:import
+```
+
+Access the app at http://localhost:8000
 
 ### Installation
 

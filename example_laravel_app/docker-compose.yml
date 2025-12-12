@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # Laravel Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./storage:/var/www/html/storage
+      - ./database:/var/www/html/database
+    networks:
+      - gummy-network
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/var/www/html/database/database.sqlite
+      - SCOUT_DRIVER=elasticsearch
+      - ELASTICSEARCH_HOST=http://gummy-search:9200
+      - RUN_SEEDERS=${RUN_SEEDERS:-false}
+      - IMPORT_TO_SEARCH=${IMPORT_TO_SEARCH:-false}
+      - CREATE_INDICES=${CREATE_INDICES:-false}
+      - FORCE_MIGRATE=${FORCE_MIGRATE:-false}
+    depends_on:
+      gummy-search:
+        condition: service_healthy
+    # Uncomment to use nginx
+    # ports:
+    #   - "8000:80"
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: laravel-nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - gummy-network
+    depends_on:
+      - app
+
+  # Gummy Search Service
+  gummy-search:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: gummy-search
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+    volumes:
+      - gummy-data:/app/data
+    networks:
+      - gummy-network
+    environment:
+      - GUMMY_HOST=0.0.0.0
+      - GUMMY_PORT=9200
+      - GUMMY_DATA_DIR=/app/data
+      - RUST_LOG=info
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Optional: Database (if you want to use MySQL/PostgreSQL instead of SQLite)
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: laravel-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+  #     MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+  #     MYSQL_PASSWORD: ${DB_PASSWORD:-root}
+  #     MYSQL_USER: ${DB_USERNAME:-laravel}
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   networks:
+  #     - gummy-network
+  #   ports:
+  #     - "3306:3306"
+
+networks:
+  gummy-network:
+    driver: bridge
+
+volumes:
+  gummy-data:
+    driver: local
