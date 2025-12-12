@@ -12,6 +12,9 @@ pub struct Config {
     pub storage: StorageConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Elasticsearch compatibility version (default: "6.4.0")
+    #[serde(default = "default_es_version")]
+    pub es_version: String,
 }
 
 /// Server configuration
@@ -61,6 +64,10 @@ fn default_log_level() -> String {
     "info".to_string()
 }
 
+fn default_es_version() -> String {
+    "6.4.0".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -74,6 +81,7 @@ impl Default for Config {
             logging: LoggingConfig {
                 level: default_log_level(),
             },
+            es_version: default_es_version(),
         }
     }
 }
@@ -95,11 +103,12 @@ impl Config {
         // Override with environment variables
         let config = config.with_env_overrides();
 
-        info!("Loaded configuration: server={}:{}, data_dir={}, log_level={}",
+        info!("Loaded configuration: server={}:{}, data_dir={}, log_level={}, es_version={}",
               config.server.host,
               config.server.port,
               config.storage.data_dir,
-              config.logging.level);
+              config.logging.level,
+              config.es_version);
 
         Ok(config)
     }
@@ -168,6 +177,11 @@ impl Config {
             self.logging.level = level;
         }
 
+        // Elasticsearch version
+        if let Ok(es_version) = std::env::var("GUMMY_ES_VERSION") {
+            self.es_version = es_version;
+        }
+
         self
     }
 
@@ -192,20 +206,24 @@ mod tests {
         assert_eq!(config.server.port, 9200);
         assert_eq!(config.storage.data_dir, "./data");
         assert_eq!(config.logging.level, "info");
+        assert_eq!(config.es_version, "6.4.0");
     }
 
     #[test]
     fn test_env_overrides() {
         std::env::set_var("GUMMY_PORT", "9300");
         std::env::set_var("GUMMY_DATA_DIR", "/tmp/test");
+        std::env::set_var("GUMMY_ES_VERSION", "7.0.0");
 
         let config = Config::default().with_env_overrides();
 
         assert_eq!(config.server.port, 9300);
         assert_eq!(config.storage.data_dir, "/tmp/test");
+        assert_eq!(config.es_version, "7.0.0");
 
         // Cleanup
         std::env::remove_var("GUMMY_PORT");
         std::env::remove_var("GUMMY_DATA_DIR");
+        std::env::remove_var("GUMMY_ES_VERSION");
     }
 }

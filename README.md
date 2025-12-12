@@ -261,6 +261,7 @@ Environment variables override config file values (highest priority):
 - `GUMMY_PORT` - Server port (default: 9200)
 - `GUMMY_DATA_DIR` - Data directory path (default: "./data")
 - `GUMMY_LOG_LEVEL` - Log level (default: "info")
+- `GUMMY_ES_VERSION` - Elasticsearch compatibility version (default: "6.4.0")
 - `RUST_LOG` - Log level (takes precedence over `GUMMY_LOG_LEVEL` and config file)
 
 **Example:**
