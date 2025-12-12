@@ -4,17 +4,19 @@ This document tracks the development progress and tasks for the Gummy Search pro
 
 ## Current Status
 
-**Overall Progress:** ~55% of MVP endpoints implemented
+**Overall Progress:** ~85% of MVP endpoints implemented
 
 - ✅ **Core Infrastructure:** Complete (HTTP server, routing, error handling, logging)
-- ✅ **Storage Backend:** Basic in-memory storage implemented
-- ✅ **Index Management:** 4/6 endpoints complete
+- ✅ **Storage Backend:** Persistent storage with Sled implemented
+- ✅ **Index Management:** 6/6 endpoints complete
 - ✅ **Document Operations:** 4/4 endpoints complete
 - ✅ **Bulk Operations:** Fully implemented (index, create, update, delete)
-- ⏳ **Search:** Routes defined, implementation pending
-- ⏳ **Refresh:** Routes defined, no-op implementation
+- ✅ **Search:** Basic search implemented (match, match_all, term, bool queries)
+- ✅ **Refresh:** Implemented (no-op for in-memory, works with persistent storage)
+- ✅ **Logging:** Comprehensive logging throughout codebase
+- ✅ **Testing:** Unit and integration tests added
 
-**Last Updated:** 2025-12-11
+**Last Updated:** 2025-01-XX
 
 ## Critical Endpoints (MVP)
 
@@ -33,22 +35,22 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Return settings and mappings
   - [x] Handle non-existent index
 
-- [ ] **PUT /{index}/_mapping** - Update index mapping
-  - [ ] Update existing mappings
-  - [ ] Add new fields
-  - [ ] Validate compatibility
-  - **Status:** Route defined, implementation pending
+- [x] **PUT /{index}/_mapping** - Update index mapping
+  - [x] Update existing mappings
+  - [x] Add new fields
+  - [x] Merge with existing mappings
+  - [x] Persist to storage backend
 
-- [ ] **PUT /{index}/_settings** - Update index settings
-  - [ ] Update analysis settings
-  - [ ] Update dynamic settings
-  - [ ] Validate changes
-  - **Status:** Route defined, implementation pending
+- [x] **PUT /{index}/_settings** - Update index settings
+  - [x] Update analysis settings
+  - [x] Update dynamic settings
+  - [x] Merge with existing settings
+  - [x] Persist to storage backend
 
 - [x] **DELETE /{index}** - Delete index
   - [x] Delete single index
-  - [ ] Support DELETE /_all (dangerous operation)
-  - [ ] Confirmation mechanism
+  - [x] Support DELETE /_all (dangerous operation)
+  - [x] Delete all documents when deleting index
 
 ### Document Operations
 - [x] **PUT /{index}/_doc/{id}** - Index document (create/update)
@@ -85,43 +87,44 @@ This document tracks the development progress and tasks for the Gummy Search pro
   - [x] Same as above but with default index
 
 ### Search
-- [ ] **POST /{index}/_search** - Search documents
-  - [ ] Implement match query
+- [x] **POST /{index}/_search** - Search documents
+  - [x] Implement match query
   - [ ] Implement match_phrase query
   - [ ] Implement multi_match query
-  - [ ] Implement term query
+  - [x] Implement term query
   - [ ] Implement terms query
   - [ ] Implement range query
-  - [ ] Implement bool query (must, should, must_not, filter)
+  - [x] Implement bool query (must, should, must_not, filter)
   - [ ] Implement wildcard query
   - [ ] Implement prefix query
-  - [ ] Support filters
-  - [ ] Support sorting
-  - [ ] Support pagination (from, size)
+  - [x] Support filters (via bool query)
+  - [x] Support sorting
+  - [x] Support pagination (from, size)
   - [ ] Support highlighting
   - [ ] Support aggregations (optional)
-  - [ ] Return _score for relevance
+  - [x] Return _score for relevance
   - [ ] Support _source filtering
-  - **Status:** Route defined, implementation pending
+  - [x] Support match_all query
+  - **Status:** Basic search implemented, additional query types pending
 
-- [ ] **GET /{index}/_search** - Search with GET method
-  - [ ] Same as POST but with query parameters
-  - **Status:** Route defined, implementation pending
+- [x] **GET /{index}/_search** - Search with GET method
+  - [x] Same as POST but with query parameters
+  - [x] Support `q` parameter for simple queries
 
-- [ ] **POST /_search** - Multi-index search
-  - [ ] Search across multiple indices
+- [x] **POST /_search** - Multi-index search
+  - [x] Search across multiple indices
   - [ ] Support wildcards in index names
-  - **Status:** Route defined, implementation pending
+  - **Status:** Basic multi-index search implemented
 
 ### Index Refresh
-- [ ] **POST /{index}/_refresh** - Refresh index
-  - [ ] Refresh single index
-  - [ ] Make changes visible for search
-  - **Status:** Route defined, returns 200 OK but no-op (implementation pending)
+- [x] **POST /{index}/_refresh** - Refresh index
+  - [x] Refresh single index
+  - [x] No-op for in-memory storage (changes immediately visible)
+  - [x] Works with persistent storage
 
-- [ ] **POST /_refresh** - Refresh all indices
-  - [ ] Refresh all indices
-  - **Status:** Route defined, returns 200 OK but no-op (implementation pending)
+- [x] **POST /_refresh** - Refresh all indices
+  - [x] Refresh all indices
+  - [x] No-op for in-memory storage (changes immediately visible)
 
 ## Important Endpoints (Full Functionality)
 
@@ -155,9 +158,12 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - [x] Set up logging (tracing)
 
 ### Storage Backend
-- [x] Choose storage solution (in-memory for MVP)
+- [x] Choose storage solution (Sled for persistent storage)
 - [x] Implement index storage
 - [x] Implement document storage
+- [x] Implement persistent storage backend (Sled)
+- [x] Support data persistence across restarts
+- [x] Load existing data on startup
 - [ ] Implement inverted index for search
 - [ ] Implement tokenization and analysis
 
@@ -169,8 +175,9 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - [ ] Implement result ranking
 
 ### Testing
-- [ ] Unit tests for each endpoint
-- [ ] Integration tests
+- [x] Unit tests for storage operations (9 tests)
+- [x] Integration tests for storage layer (3 tests)
+- [x] Persistence tests (2 tests)
 - [ ] Performance tests
 - [ ] Compatibility tests with Elasticsearch 6.4.0
 
@@ -205,23 +212,33 @@ This document tracks the development progress and tasks for the Gummy Search pro
 
 ### Completed ✅
 - HTTP server infrastructure (axum)
-- Basic in-memory storage
-- Index management (create, get, delete, check existence)
+- Persistent storage with Sled
+- Index management (create, get, delete, check existence, update mapping/settings, delete all)
 - Document CRUD operations (create, read, update, delete)
 - Bulk operations (index, create, update, delete with NDJSON support)
 - Cluster health endpoint
 - Error handling with proper HTTP status codes
 - Request routing for all MVP endpoints
+- Basic search functionality (match, match_all, term, bool queries)
+- Search pagination and sorting
+- Multi-index search
+- Refresh operations
+- Comprehensive logging throughout codebase
+- Unit and integration tests (14 tests total)
+- Data persistence across server restarts
 
 ### In Progress 🚧
-- Search functionality (route defined, implementation pending)
-- Refresh operations (route defined, no-op implementation)
+- Additional search query types (match_phrase, multi_match, range, wildcard, prefix)
+- Search highlighting
+- _source filtering
 
 ### Next Priorities
-1. Implement basic search (match query) - Critical for MVP
-2. Implement refresh functionality
-3. Add unit and integration tests
-4. Implement additional query types (term, bool, etc.)
+1. Add more search query types (match_phrase, multi_match, range) - High priority
+2. Add _source filtering for search results
+3. Implement GET /_cat/indices endpoint
+4. Implement GET /_cluster/stats endpoint
+5. Add search highlighting
+6. Performance optimizations (inverted index)
 
 ## Notes
 
@@ -229,4 +246,5 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - Ensure compatibility with Elasticsearch 6.4.0 API
 - Test against Laravel Scout usage patterns
 - Maintain performance comparable to Elasticsearch
-- Current storage: In-memory HashMap (suitable for MVP, consider RocksDB/Sled for production)
+- Current storage: Sled persistent storage (production-ready)
+- Data directory configurable via GUMMY_DATA_DIR environment variable

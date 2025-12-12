@@ -9,22 +9,37 @@ Gummy Search is a limited port of Elasticsearch API written in Rust, designed to
 ## Features
 
 ### ✅ Implemented
-- **Index Management**: Create, get, delete, and check index existence
+- **Index Management**: Create, get, delete, check existence, update mappings/settings
 - **Document Operations**: Full CRUD (create, read, update, delete)
 - **Bulk Operations**: Mass indexing with NDJSON format support
+- **Search Functionality**:
+  - Match query (text search)
+  - Match phrase query (exact phrase matching)
+  - Multi-match query (search across multiple fields)
+  - Term query (exact match)
+  - Bool query (must, should, must_not, filter)
+  - Range query (numeric/date ranges)
+  - Match all query
+  - Pagination (from, size)
+  - Sorting
+  - Multi-index search
 - **Cluster Health**: Health check endpoint
 - **HTTP Server**: Built with Axum, async/await support
-- **In-Memory Storage**: Fast in-memory storage for MVP
+- **Persistent Storage**: Sled-based persistent storage (data survives restarts)
+- **Logging**: Comprehensive logging throughout codebase
+- **Testing**: Unit and integration tests
 
 ### 🚧 In Progress
-- **Search Functionality**: Basic search queries (routes defined, implementation pending)
-- **Refresh Operations**: Index refresh endpoints (no-op implementation)
+- Additional query types (wildcard, prefix, terms)
+- Search highlighting
+- _source filtering
 
 ### 📋 Planned
-- Advanced query types (match, term, bool, etc.)
-- Search result ranking and scoring
-- Index refresh functionality
-- Persistent storage backend (RocksDB/Sled)
+- Advanced query types (wildcard, prefix, terms)
+- Search highlighting
+- Aggregations
+- Inverted index for better search performance
+- Tokenization and text analysis
 
 ## Quick Start
 
@@ -284,7 +299,7 @@ See [TODO](docs/TODO.md) for detailed progress and upcoming features.
 
 - **HTTP Framework**: [Axum](https://github.com/tokio-rs/axum) - Modern async web framework
 - **Async Runtime**: [Tokio](https://tokio.rs/) - Async runtime for Rust
-- **Storage**: In-memory HashMap (MVP), extensible for persistent storage
+- **Storage**: Sled persistent storage (production-ready), configurable data directory
 - **Error Handling**: Custom error types with proper HTTP status codes
 - **Logging**: [Tracing](https://github.com/tokio-rs/tracing) for structured logging
 

@@ -648,6 +648,63 @@ impl Storage {
                 }
             }
 
+            // Handle match_phrase query: { "match_phrase": { "field": "exact phrase" } }
+            if let Some(match_phrase_query) = query_obj.get("match_phrase") {
+                if let Some(match_phrase_obj) = match_phrase_query.as_object() {
+                    for (field, query_value) in match_phrase_obj {
+                        let query_text = if let Some(q) = query_value.as_object() {
+                            q.get("query").and_then(|v| v.as_str()).unwrap_or("")
+                        } else {
+                            query_value.as_str().unwrap_or("")
+                        };
+
+                        if let Some(score) = self.match_phrase_field(doc, field, query_text) {
+                            return Ok(score);
+                        }
+                    }
+                }
+            }
+
+            // Handle multi_match query: { "multi_match": { "query": "text", "fields": ["field1", "field2"] } }
+            if let Some(multi_match_query) = query_obj.get("multi_match") {
+                if let Some(multi_match_obj) = multi_match_query.as_object() {
+                    let query_text = multi_match_obj.get("query")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let fields = if let Some(fields_val) = multi_match_obj.get("fields") {
+                        if let Some(fields_array) = fields_val.as_array() {
+                            fields_array.iter()
+                                .filter_map(|f| f.as_str())
+                                .collect::<Vec<_>>()
+                        } else if let Some(field_str) = fields_val.as_str() {
+                            vec![field_str]
+                        } else {
+                            vec!["_all"]
+                        }
+                    } else {
+                        vec!["_all"]
+                    };
+
+                    if let Some(score) = self.multi_match_fields(doc, &fields, query_text) {
+                        return Ok(score);
+                    }
+                }
+            }
+
+            // Handle range query: { "range": { "field": { "gte": 10, "lte": 20 } } }
+            if let Some(range_query) = query_obj.get("range") {
+                if let Some(range_obj) = range_query.as_object() {
+                    for (field, range_spec) in range_obj {
+                        if let Some(range_params) = range_spec.as_object() {
+                            if self.range_match(doc, field, range_params) {
+                                return Ok(1.0);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Handle term query: { "term": { "field": "value" } }
             if let Some(term_query) = query_obj.get("term") {
                 if let Some(term_obj) = term_query.as_object() {
@@ -785,6 +842,190 @@ impl Storage {
         } else {
             false
         }
+    }
+
+    /// Match a field against an exact phrase (words must appear in order)
+    fn match_phrase_field(&self, doc: &serde_json::Value, field: &str, phrase: &str) -> Option<f64> {
+        if phrase.is_empty() {
+            return Some(1.0);
+        }
+
+        // Handle _all field - search in all fields
+        if field == "_all" || field == "*" {
+            return self.match_phrase_all_fields(doc, phrase);
+        }
+
+        let field_value = self.get_field_value(doc, field)?;
+        let field_str = match field_value {
+            serde_json::Value::String(s) => s.to_lowercase(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            _ => return None,
+        };
+
+        let phrase_lower = phrase.to_lowercase();
+
+        // Exact phrase match gets highest score
+        if field_str.contains(&phrase_lower) {
+            // Check if it's an exact phrase (words in order)
+            let phrase_words: Vec<&str> = phrase_lower.split_whitespace().collect();
+            if phrase_words.len() == 1 {
+                // Single word - same as match
+                Some(1.0)
+            } else {
+                // Multi-word phrase - check if words appear in order
+                let field_words: Vec<&str> = field_str.split_whitespace().collect();
+                if self.words_in_order(&field_words, &phrase_words) {
+                    Some(1.0)
+                } else {
+                    // Phrase words exist but not in order - lower score
+                    Some(0.6)
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Check if phrase words appear in order in field words
+    fn words_in_order(&self, field_words: &[&str], phrase_words: &[&str]) -> bool {
+        if phrase_words.is_empty() {
+            return true;
+        }
+
+        let mut phrase_idx = 0;
+        for field_word in field_words {
+            if phrase_idx < phrase_words.len() && field_word.contains(phrase_words[phrase_idx]) {
+                phrase_idx += 1;
+                if phrase_idx == phrase_words.len() {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Match phrase against all fields in a document
+    fn match_phrase_all_fields(&self, doc: &serde_json::Value, phrase: &str) -> Option<f64> {
+        if phrase.is_empty() {
+            return Some(1.0);
+        }
+
+        let phrase_lower = phrase.to_lowercase();
+        let mut max_score = 0.0;
+
+        // Recursively search all string values in the document
+        self.search_phrase_value(doc, &phrase_lower, &mut max_score);
+
+        if max_score > 0.0 {
+            Some(max_score)
+        } else {
+            None
+        }
+    }
+
+    /// Recursively search a JSON value for the exact phrase
+    fn search_phrase_value(&self, value: &serde_json::Value, phrase: &str, max_score: &mut f64) {
+        match value {
+            serde_json::Value::String(s) => {
+                let s_lower = s.to_lowercase();
+                if s_lower.contains(phrase) {
+                    let phrase_words: Vec<&str> = phrase.split_whitespace().collect();
+                    let field_words: Vec<&str> = s_lower.split_whitespace().collect();
+                    if phrase_words.len() == 1 || self.words_in_order(&field_words, &phrase_words) {
+                        *max_score = max_score.max(1.0);
+                    } else {
+                        *max_score = max_score.max(0.6);
+                    }
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for v in map.values() {
+                    self.search_phrase_value(v, phrase, max_score);
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for v in arr {
+                    self.search_phrase_value(v, phrase, max_score);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Match query text against multiple fields (returns highest score)
+    fn multi_match_fields(&self, doc: &serde_json::Value, fields: &[&str], query_text: &str) -> Option<f64> {
+        if query_text.is_empty() {
+            return Some(1.0);
+        }
+
+        let mut max_score: f64 = 0.0;
+        for field in fields {
+            if let Some(score) = self.match_field(doc, field, query_text) {
+                max_score = max_score.max(score);
+            }
+        }
+
+        if max_score > 0.0 {
+            Some(max_score)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a field value matches a range query
+    fn range_match(&self, doc: &serde_json::Value, field: &str, range_params: &serde_json::Map<String, serde_json::Value>) -> bool {
+        let field_value = match self.get_field_value(doc, field) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        // Extract numeric value
+        let num_value = match field_value {
+            serde_json::Value::Number(n) => n.as_f64(),
+            serde_json::Value::String(s) => s.parse::<f64>().ok(),
+            _ => return false,
+        };
+
+        let num_value = match num_value {
+            Some(v) => v,
+            None => return false,
+        };
+
+        // Check range conditions
+        if let Some(gte) = range_params.get("gte") {
+            if let Some(gte_val) = gte.as_f64() {
+                if num_value < gte_val {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(gt) = range_params.get("gt") {
+            if let Some(gt_val) = gt.as_f64() {
+                if num_value <= gt_val {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(lte) = range_params.get("lte") {
+            if let Some(lte_val) = lte.as_f64() {
+                if num_value > lte_val {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(lt) = range_params.get("lt") {
+            if let Some(lt_val) = lt.as_f64() {
+                if num_value >= lt_val {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     /// Score a bool query
@@ -1144,5 +1385,137 @@ mod tests {
         assert_eq!(hits[0].get("_id").and_then(|id| id.as_str()).unwrap(), "2"); // Bob, age 25
         assert_eq!(hits[1].get("_id").and_then(|id| id.as_str()).unwrap(), "1"); // Alice, age 30
         assert_eq!(hits[2].get("_id").and_then(|id| id.as_str()).unwrap(), "3"); // Charlie, age 35
+    }
+
+    #[tokio::test]
+    async fn test_search_match_phrase() {
+        let storage = Storage::new();
+
+        storage.create_index("test_index", None, None).await.unwrap();
+        storage.index_document("test_index", "1", serde_json::json!({
+            "title": "Rust Programming Guide",
+            "content": "Learn Rust programming language"
+        })).await.unwrap();
+
+        storage.index_document("test_index", "2", serde_json::json!({
+            "title": "Python Tutorial",
+            "content": "Learn Python programming"
+        })).await.unwrap();
+
+        // Match phrase query - exact phrase match
+        let query = serde_json::json!({
+            "match_phrase": {
+                "title": "Rust Programming"
+            }
+        });
+
+        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].get("_id").and_then(|id| id.as_str()).unwrap(), "1");
+    }
+
+    #[tokio::test]
+    async fn test_search_multi_match() {
+        let storage = Storage::new();
+
+        storage.create_index("test_index", None, None).await.unwrap();
+        storage.index_document("test_index", "1", serde_json::json!({
+            "title": "Rust Guide",
+            "description": "Learn Rust",
+            "tags": "programming"
+        })).await.unwrap();
+
+        storage.index_document("test_index", "2", serde_json::json!({
+            "title": "Python Tutorial",
+            "description": "Learn Python",
+            "tags": "tutorial"
+        })).await.unwrap();
+
+        // Multi-match query - search across multiple fields
+        let query = serde_json::json!({
+            "multi_match": {
+                "query": "Rust",
+                "fields": ["title", "description"]
+            }
+        });
+
+        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].get("_id").and_then(|id| id.as_str()).unwrap(), "1");
+    }
+
+    #[tokio::test]
+    async fn test_search_range() {
+        let storage = Storage::new();
+
+        storage.create_index("test_index", None, None).await.unwrap();
+        storage.index_document("test_index", "1", serde_json::json!({
+            "name": "Alice",
+            "age": 25
+        })).await.unwrap();
+        storage.index_document("test_index", "2", serde_json::json!({
+            "name": "Bob",
+            "age": 30
+        })).await.unwrap();
+        storage.index_document("test_index", "3", serde_json::json!({
+            "name": "Charlie",
+            "age": 35
+        })).await.unwrap();
+
+        // Range query - age between 28 and 40
+        let query = serde_json::json!({
+            "range": {
+                "age": {
+                    "gte": 28,
+                    "lte": 40
+                }
+            }
+        });
+
+        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
+
+        assert_eq!(hits.len(), 2);
+        let ids: Vec<&str> = hits.iter()
+            .map(|h| h.get("_id").and_then(|id| id.as_str()).unwrap())
+            .collect();
+        assert!(ids.contains(&"2")); // Bob, age 30
+        assert!(ids.contains(&"3")); // Charlie, age 35
+    }
+
+    #[tokio::test]
+    async fn test_search_range_gt_lt() {
+        let storage = Storage::new();
+
+        storage.create_index("test_index", None, None).await.unwrap();
+        storage.index_document("test_index", "1", serde_json::json!({
+            "price": 10.0
+        })).await.unwrap();
+        storage.index_document("test_index", "2", serde_json::json!({
+            "price": 20.0
+        })).await.unwrap();
+        storage.index_document("test_index", "3", serde_json::json!({
+            "price": 30.0
+        })).await.unwrap();
+
+        // Range query with gt and lt
+        let query = serde_json::json!({
+            "range": {
+                "price": {
+                    "gt": 10.0,
+                    "lt": 30.0
+                }
+            }
+        });
+
+        let result = storage.search("test_index", &query, None, None, None).await.unwrap();
+        let hits = result.get("hits").and_then(|h| h.get("hits")).and_then(|h| h.as_array()).unwrap();
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].get("_id").and_then(|id| id.as_str()).unwrap(), "2"); // price 20.0
     }
 }
