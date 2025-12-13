@@ -1,5 +1,5 @@
 use gummy_search::config::Config;
-use gummy_search::server::{create_app, AppState};
+use gummy_search::server::{create_router, AppState};
 use gummy_search::storage::Storage;
 use tracing_subscriber;
 
@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Create app
-    let app = create_app(state).await;
+    let app = create_router(state);
 
     // Start server
     let addr = config.server_addr();
