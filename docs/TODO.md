@@ -202,6 +202,77 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - [ ] Authentication (if needed)
 - [ ] Authorization (if needed)
 
+## Web Dashboard (`/web/`)
+
+### Dashboard Features
+- [ ] **Cluster Overview**
+  - [ ] Display cluster health status (green/yellow/red) with visual indicator
+  - [ ] Show number of nodes, indices, and documents
+  - [ ] Display cluster statistics (uptime, version, etc.)
+  - [ ] Real-time health monitoring with auto-refresh
+
+- [ ] **Indices Management**
+  - [ ] List all indices with details (document count, size, status)
+  - [ ] Visual index cards/table with sortable columns
+  - [ ] Quick actions: view details, delete index, refresh index
+  - [ ] Create new index form with settings and mappings
+  - [ ] Index search/filter functionality
+  - [ ] Display index aliases
+
+- [ ] **System Information**
+  - [ ] Server version and build information
+  - [ ] Storage backend information (Sled, in-memory)
+  - [ ] Data directory path and disk usage
+  - [ ] Memory usage statistics
+  - [ ] Request statistics (if implemented)
+
+- [ ] **Search Interface**
+  - [ ] Interactive search form for testing queries
+  - [ ] Support for different query types (match, term, range, etc.)
+  - [ ] Display search results with highlighting
+  - [ ] Query builder UI for complex queries
+  - [ ] Search history or saved queries
+
+- [ ] **Document Management**
+  - [ ] Browse documents by index
+  - [ ] View document details
+  - [ ] Create/edit/delete documents
+  - [ ] Bulk operations interface
+
+- [ ] **UI/UX Enhancements**
+  - [ ] Modern, responsive design
+  - [ ] Dark mode support
+  - [ ] Real-time updates (WebSocket or polling)
+  - [ ] Loading states and error handling
+  - [ ] Toast notifications for actions
+  - [ ] Keyboard shortcuts
+  - [ ] Export data (JSON, CSV)
+
+- [ ] **Technical Implementation**
+  - [x] **CSS Framework:** Tailwind CSS (via CDN) - Selected for rapid development and modern design
+  - [x] **JavaScript Libraries:** Alpine.js and htmx - For reactive UI and dynamic updates
+  - [x] **WebSocket Endpoint:** `GET /_ws` - Real-time updates endpoint (ready for integration)
+  - [ ] Convert static HTML to dynamic dashboard
+  - [ ] Add JavaScript for API calls to backend endpoints
+  - [ ] Integrate WebSocket for real-time updates (replace polling)
+  - [ ] Implement client-side routing (optional)
+  - [ ] Add data visualization (charts for stats)
+  - [ ] Error handling and user feedback
+  - [ ] API endpoint integration
+  - [ ] Responsive mobile design
+
+### Available API Endpoints for Dashboard
+- `GET /_cluster/health` - Cluster health status
+- `GET /_cluster/stats` - Cluster statistics
+- `GET /_cat/indices?v` - List all indices with details
+- `GET /_aliases` - Index aliases
+- `GET /{index}` - Index details (settings, mappings)
+- `GET /{index}/_doc/{id}` - Get document
+- `POST /{index}/_search` - Search documents
+- `PUT /{index}` - Create index
+- `DELETE /{index}` - Delete index
+- `GET /_ws` - WebSocket endpoint for real-time updates (sends: cluster_health, cluster_stats, indices)
+
 ## Future Enhancements
 - [ ] Support for more query types
 - [ ] Support for aggregations
@@ -233,6 +304,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - Complete documentation (API, usage examples, architecture)
 
 ### In Progress 🚧
+- Web Dashboard (`/web/`) - Interactive dashboard with system information and management tools
 - Performance optimizations
 
 ### Next Priorities
@@ -245,8 +317,9 @@ This document tracks the development progress and tasks for the Gummy Search pro
 7. ✅ Add refresh parameter to bulk operations - Completed
 8. ✅ Create comprehensive documentation - Completed
 9. ✅ Implement GET /_aliases endpoint - Completed
-10. Performance optimizations (inverted index) - Future enhancement
-11. Support aggregations - Optional feature
+10. **Web Dashboard** - Interactive dashboard at `/web/` with system info and management tools
+11. Performance optimizations (inverted index) - Future enhancement
+12. Support aggregations - Optional feature
 
 ## Notes
 
@@ -268,15 +341,16 @@ The project is in excellent shape for an MVP. Most critical features are complet
 - **Coverage:** Core functionality is well tested
 
 ### Next Milestone
-**Target:** 95% MVP completion
-**Remaining:** GET /_aliases endpoint, performance/compatibility tests
+**Target:** 95% MVP completion + Web Dashboard
+**Remaining:** Web Dashboard (`/web/`), performance/compatibility tests
 
 ### Recommendations
 
 #### High Priority (Next Steps)
-1. **GET /_aliases endpoint** - Completes monitoring/management features
-2. **Performance tests** - Ensure system performs well under load
-3. **Compatibility tests** - Verify Elasticsearch 6.4.0 compatibility
+1. ✅ **GET /_aliases endpoint** - Completed
+2. **Web Dashboard (`/web/`)** - Interactive dashboard with system info, index management, and search interface
+3. **Performance tests** - Ensure system performs well under load
+4. **Compatibility tests** - Verify Elasticsearch 6.4.0 compatibility
 
 #### Medium Priority
 4. **Input validation** - Enhanced validation for all endpoints
