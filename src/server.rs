@@ -1,13 +1,16 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::Json,
+    response::{Html, Json},
     routing::{get, post, put, delete, head},
     Router,
 };
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    cors::CorsLayer,
+    trace::TraceLayer,
+    services::ServeDir,
+};
 use tracing::{info, debug, error, warn};
 
 use crate::error::{GummySearchError, Result};
@@ -22,6 +25,9 @@ pub struct AppState {
 pub async fn create_app(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
+        .route("/web/", get(web_index))
+        .route("/web", get(web_index))
+        .nest_service("/static", ServeDir::new("static"))
         .route("/_cluster/health", get(cluster_health))
         .route("/_cluster/stats", get(cluster_stats))
         .route("/_cat/indices", get(cat_indices))
@@ -50,6 +56,16 @@ pub async fn create_app(state: AppState) -> Router {
 
 async fn root() -> &'static str {
     "Gummy Search - Elasticsearch-compatible search engine"
+}
+
+async fn web_index() -> Result<Html<String>> {
+    use std::fs;
+
+    // Read the index.html file
+    let html_content = fs::read_to_string("static/index.html")
+        .map_err(|e| GummySearchError::Storage(format!("Failed to read index.html: {}", e)))?;
+
+    Ok(Html(html_content))
 }
 
 #[axum::debug_handler]
