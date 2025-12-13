@@ -1,7 +1,6 @@
 pub mod client;
 pub mod index;
 pub mod document;
-pub mod search;
 pub mod bulk;
 pub mod bulk_ops;
 pub mod models;
