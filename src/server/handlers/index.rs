@@ -102,7 +102,7 @@ pub async fn update_settings(
 }
 
 pub async fn refresh_index(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(index): Path<String>,
 ) -> Result<StatusCode> {
     info!("Refreshing index: {}", index);

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, debug, error, warn};
+use tracing::{info, debug, error};
 
 use crate::error::{GummySearchError, Result};
 use crate::bulk_ops::BulkAction;
