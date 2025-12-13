@@ -413,6 +413,7 @@ Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints.
 
 ## Documentation
 
+- **[API Routes](docs/ROUTES.md)** - Quick reference of all API routes organized by category
 - **[API Documentation](docs/API.md)** - Complete API reference with examples
 - **[Usage Examples](docs/USAGE_EXAMPLES.md)** - Practical usage examples and scenarios
 - **[Architecture](docs/ARCHITECTURE.md)** - System architecture and design

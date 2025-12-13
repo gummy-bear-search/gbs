@@ -2,6 +2,8 @@
 
 This document provides comprehensive API documentation for Gummy Search, an Elasticsearch-compatible search engine.
 
+> **Quick Reference:** For a quick overview of all routes, see [ROUTES.md](./ROUTES.md)
+
 ## Base URL
 
 All API requests should be made to:
