@@ -3,21 +3,133 @@ function dashboard() {
     return {
         loading: false,
         showCreateModal: false,
+        showIndexDetail: false,
+        showSearchModal: false,
+        showDocumentModal: false,
+        currentView: 'overview', // overview, index-detail, search
+        currentIndex: null,
+        currentDocument: null,
         newIndexName: '',
+        searchQuery: '',
+        searchIndex: '',
+        searchResults: [],
+        indexDetails: null,
+        wsConnected: false,
+        ws: null,
         stats: {
             indices: '-',
             documents: '-',
             nodes: '-'
         },
+        toasts: [],
 
         async init() {
             // Load initial stats
             await this.loadStats();
 
-            // Set up auto-refresh every 30 seconds
+            // Connect to WebSocket
+            this.connectWebSocket();
+
+            // Set up auto-refresh fallback (if WebSocket fails)
             setInterval(() => {
-                this.refresh();
+                if (!this.wsConnected) {
+                    this.refresh();
+                }
             }, 30000);
+        },
+
+        connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/_ws`;
+
+            try {
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.wsConnected = true;
+                    this.showToast('Connected to real-time updates', 'success');
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        this.handleWebSocketMessage(message);
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e);
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.wsConnected = false;
+                };
+
+                this.ws.onclose = () => {
+                    this.wsConnected = false;
+                    // Attempt to reconnect after 5 seconds
+                    setTimeout(() => this.connectWebSocket(), 5000);
+                };
+            } catch (error) {
+                console.error('Failed to connect WebSocket:', error);
+                this.wsConnected = false;
+            }
+        },
+
+        handleWebSocketMessage(message) {
+            switch (message.type) {
+                case 'cluster_health':
+                    this.updateClusterHealth(message.data);
+                    break;
+                case 'cluster_stats':
+                    this.updateClusterStats(message.data);
+                    break;
+                case 'indices':
+                    this.updateIndices(message.data);
+                    break;
+            }
+        },
+
+        updateClusterHealth(data) {
+            const healthEl = document.getElementById('clusterHealth');
+            if (healthEl) {
+                const status = data.status || 'unknown';
+                const statusColors = {
+                    'green': 'bg-green-500',
+                    'yellow': 'bg-yellow-500',
+                    'red': 'bg-red-500'
+                };
+                const color = statusColors[status] || 'bg-gray-500';
+                healthEl.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <div class="${color} rounded-full h-12 w-12 flex items-center justify-center">
+                            <span class="text-white text-xl font-bold">${status.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                            <p class="text-lg font-semibold text-gray-800">Status: <span class="capitalize">${status}</span></p>
+                            <p class="text-sm text-gray-600">Nodes: ${data.number_of_nodes || 0} | Shards: ${data.active_shards || 0}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        },
+
+        updateClusterStats(data) {
+            const indices = data.indices || {};
+            const indicesCount = Object.keys(indices).length;
+            let totalDocs = 0;
+            Object.values(indices).forEach(index => {
+                totalDocs += index.total?.docs?.count || 0;
+            });
+            this.stats = {
+                indices: indicesCount,
+                documents: totalDocs.toLocaleString(),
+                nodes: data.nodes?.count?.total || 1
+            };
+        },
+
+        updateIndices(data) {
+            // Trigger htmx refresh for indices table
+            htmx.trigger(document.body, 'refresh');
         },
 
         async refresh() {
@@ -65,24 +177,127 @@ function dashboard() {
                     this.showCreateModal = false;
                     this.newIndexName = '';
                     this.refresh();
-                    this.showNotification('Index created successfully!', 'success');
+                    this.showToast('Index created successfully!', 'success');
                 } else {
                     const error = await response.json();
-                    this.showNotification(
+                    this.showToast(
                         error.error?.reason || 'Failed to create index',
                         'error'
                     );
                 }
             } catch (error) {
-                this.showNotification(`Error: ${error.message}`, 'error');
+                this.showToast(`Error: ${error.message}`, 'error');
             } finally {
                 this.loading = false;
             }
         },
 
-        showNotification(message, type = 'info') {
-            // Simple alert for now, can be enhanced with a toast component
-            alert(message);
+        showToast(message, type = 'info') {
+            const id = Date.now();
+            const toast = { id, message, type };
+            this.toasts.push(toast);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, 5000);
+        },
+
+        removeToast(id) {
+            this.toasts = this.toasts.filter(t => t.id !== id);
+        },
+
+        async viewIndex(indexName) {
+            this.currentIndex = indexName;
+            this.currentView = 'index-detail';
+            this.showIndexDetail = true;
+
+            try {
+                const response = await fetch(`/${indexName}`);
+                if (response.ok) {
+                    this.indexDetails = await response.json();
+                } else {
+                    this.showToast('Failed to load index details', 'error');
+                }
+            } catch (error) {
+                this.showToast(`Error: ${error.message}`, 'error');
+            }
+        },
+
+        backToOverview() {
+            this.currentView = 'overview';
+            this.showIndexDetail = false;
+            this.currentIndex = null;
+            this.indexDetails = null;
+        },
+
+        async search() {
+            if (!this.searchIndex || !this.searchQuery) {
+                this.showToast('Please select an index and enter a search query', 'error');
+                return;
+            }
+
+            this.loading = true;
+            try {
+                // Try to parse as JSON, if it fails, treat as simple text query
+                let queryBody;
+                try {
+                    queryBody = JSON.parse(this.searchQuery);
+                } catch (e) {
+                    // Not JSON, create a simple match query
+                    queryBody = {
+                        query: {
+                            match: {
+                                _all: this.searchQuery
+                            }
+                        },
+                        highlight: {
+                            fields: {
+                                '*': {}
+                            }
+                        }
+                    };
+                }
+
+                const response = await fetch(`/${this.searchIndex}/_search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(queryBody)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.searchResults = result.hits?.hits || [];
+                    const total = result.hits?.total?.value || result.hits?.total || this.searchResults.length;
+                    this.showToast(`Found ${total} result(s)`, 'success');
+                } else {
+                    const error = await response.json();
+                    this.showToast(error.error?.reason || 'Search failed', 'error');
+                }
+            } catch (error) {
+                this.showToast(`Error: ${error.message}`, 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async viewDocument(indexName, docId) {
+            try {
+                const response = await fetch(`/${indexName}/_doc/${docId}`);
+                if (response.ok) {
+                    this.currentDocument = await response.json();
+                    this.showDocumentModal = true;
+                } else {
+                    this.showToast('Failed to load document', 'error');
+                }
+            } catch (error) {
+                this.showToast(`Error: ${error.message}`, 'error');
+            }
+        },
+
+        closeDocumentModal() {
+            this.showDocumentModal = false;
+            this.currentDocument = null;
         }
     }
 }
@@ -164,7 +379,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.docs || '0'}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <button
-                                    onclick="viewIndex('${row.index}')"
+                                    onclick="window.viewIndexFromTable('${row.index}')"
                                     class="text-primary hover:text-primary/80 mr-2"
                                 >
                                     View
@@ -210,13 +425,15 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     }
 });
 
-// Global functions for index actions
-function viewIndex(indexName) {
-    window.location.href = `#index/${indexName}`;
-    // TODO: Implement index detail view
-    alert(`View index: ${indexName}`);
-}
+// Global function for viewing index (called from htmx-rendered table)
+window.viewIndexFromTable = function(indexName) {
+    const dashboard = Alpine.$data(document.querySelector('[x-data]'));
+    if (dashboard && dashboard.viewIndex) {
+        dashboard.viewIndex(indexName);
+    }
+};
 
+// Global function for deleting index (called from htmx-rendered table)
 async function deleteIndex(indexName) {
     if (!confirm(`Are you sure you want to delete index "${indexName}"? This action cannot be undone.`)) {
         return;
@@ -227,11 +444,28 @@ async function deleteIndex(indexName) {
         if (response.ok) {
             // Trigger refresh
             htmx.trigger(document.body, 'refresh');
-            alert('Index deleted successfully!');
+            // Show toast notification
+            const dashboard = Alpine.$data(document.querySelector('[x-data]'));
+            if (dashboard && dashboard.showToast) {
+                dashboard.showToast('Index deleted successfully!', 'success');
+            } else {
+                alert('Index deleted successfully!');
+            }
         } else {
-            alert('Failed to delete index');
+            const error = await response.json();
+            const dashboard = Alpine.$data(document.querySelector('[x-data]'));
+            if (dashboard && dashboard.showToast) {
+                dashboard.showToast(error.error?.reason || 'Failed to delete index', 'error');
+            } else {
+                alert('Failed to delete index');
+            }
         }
     } catch (error) {
-        alert(`Error deleting index: ${error.message}`);
+        const dashboard = Alpine.$data(document.querySelector('[x-data]'));
+        if (dashboard && dashboard.showToast) {
+            dashboard.showToast(`Error: ${error.message}`, 'error');
+        } else {
+            alert(`Error deleting index: ${error.message}`);
+        }
     }
 }
