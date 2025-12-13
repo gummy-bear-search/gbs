@@ -2,10 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
-use tracing::{info, debug, warn, error};
-use regex::Regex;
-use chrono::Utc;
+use tracing::{info, debug, error, warn};
 
 use crate::error::{GummySearchError, Result};
 use crate::bulk_ops::BulkAction;
@@ -14,6 +11,9 @@ use crate::storage_backend::SledBackend;
 // Declare submodules
 mod index;
 mod search;
+mod index_ops;
+mod document_ops;
+mod stats;
 
 // Re-export Index
 pub use index::Index;
@@ -22,6 +22,11 @@ pub use index::Index;
 use search::{
     score_document, highlight_document, filter_source, compare_documents
 };
+
+// Import operations from submodules
+use index_ops::*;
+use document_ops::*;
+use stats::*;
 
 // Index struct is now in storage/index.rs
 
@@ -122,249 +127,35 @@ impl Storage {
         settings: Option<serde_json::Value>,
         mappings: Option<serde_json::Value>,
     ) -> Result<()> {
-        info!("Creating index: {}", name);
-        let mut indices = self.indices.write().await;
-
-        if indices.contains_key(name) {
-            warn!("Attempted to create index '{}' that already exists", name);
-            return Err(GummySearchError::InvalidRequest(
-                format!("Index {} already exists", name),
-            ));
-        }
-
-        // Persist to backend if available
-        if let Some(backend) = &self.backend {
-            debug!("Persisting index '{}' to storage backend", name);
-            let backend_clone = backend.clone();
-            let name_str = name.to_string();
-            let settings_clone = settings.clone();
-            let mappings_clone = mappings.clone();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.store_index_metadata(&name_str, settings_clone.as_ref(), mappings_clone.as_ref())
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Index '{}' persisted successfully", name);
-        }
-
-        let index = Index::new(name.to_string(), settings, mappings);
-        indices.insert(name.to_string(), index);
-        info!("Index '{}' created successfully", name);
-
-        Ok(())
+        create_index(&self.indices, &self.backend, name, settings, mappings).await
     }
 
     pub async fn index_exists(&self, name: &str) -> Result<bool> {
-        let indices = self.indices.read().await;
-        Ok(indices.contains_key(name))
+        index_exists(&self.indices, name).await
     }
 
     pub async fn list_indices(&self) -> Vec<String> {
-        let indices = self.indices.read().await;
-        indices.keys().cloned().collect()
+        list_indices(&self.indices).await
     }
 
     /// Match index names against a pattern (supports * and ? wildcards)
     pub async fn match_indices(&self, pattern: &str) -> Vec<String> {
-        let all_indices = self.list_indices().await;
-
-        // Convert pattern to regex
-        let mut regex_pattern = String::new();
-        for c in pattern.chars() {
-            match c {
-                '*' => regex_pattern.push_str(".*"),
-                '?' => regex_pattern.push('.'),
-                '.' => regex_pattern.push_str(r"\."),
-                '+' => regex_pattern.push_str(r"\+"),
-                '(' => regex_pattern.push_str(r"\("),
-                ')' => regex_pattern.push_str(r"\)"),
-                '[' => regex_pattern.push_str(r"\["),
-                ']' => regex_pattern.push_str(r"\]"),
-                '{' => regex_pattern.push_str(r"\{"),
-                '}' => regex_pattern.push_str(r"\}"),
-                '^' => regex_pattern.push_str(r"\^"),
-                '$' => regex_pattern.push_str(r"\$"),
-                '|' => regex_pattern.push_str(r"\|"),
-                '\\' => regex_pattern.push_str(r"\\"),
-                _ => {
-                    let mut buf = [0; 4];
-                    let s = c.encode_utf8(&mut buf);
-                    regex_pattern.push_str(&regex::escape(s));
-                }
-            }
-        }
-
-        let full_pattern = format!("^{}$", regex_pattern);
-
-        match Regex::new(&full_pattern) {
-            Ok(re) => {
-                all_indices.into_iter()
-                    .filter(|name| re.is_match(name))
-                    .collect()
-            }
-            Err(_) => {
-                // Invalid pattern, return empty
-                Vec::new()
-            }
-        }
+        match_indices(&self.indices, pattern).await
     }
 
     /// Get statistics for all indices
     pub async fn get_indices_stats(&self) -> Vec<(String, usize)> {
-        let indices = self.indices.read().await;
-        indices.iter()
-            .map(|(name, index)| (name.clone(), index.documents.len()))
-            .collect()
+        get_indices_stats(&self.indices).await
     }
 
     /// Get aliases for all indices
-    /// Returns a JSON object mapping index names to their aliases
     pub async fn get_aliases(&self) -> serde_json::Value {
-        let indices = self.indices.read().await;
-        let mut result = serde_json::Map::new();
-
-        for (index_name, index) in indices.iter() {
-            let mut aliases_map = serde_json::Map::new();
-            for alias in &index.aliases {
-                aliases_map.insert(alias.clone(), serde_json::json!({}));
-            }
-
-            result.insert(
-                index_name.clone(),
-                serde_json::json!({
-                    "aliases": serde_json::Value::Object(aliases_map)
-                }),
-            );
-        }
-
-        serde_json::Value::Object(result)
+        get_aliases(&self.indices).await
     }
 
     /// Get cluster statistics
     pub async fn get_cluster_stats(&self) -> serde_json::Value {
-        let indices = self.indices.read().await;
-        let total_indices = indices.len();
-        let total_docs: usize = indices.values().map(|idx| idx.documents.len()).sum();
-
-        serde_json::json!({
-            "cluster_name": "gummy-search",
-            "cluster_uuid": "gummy-search-cluster",
-            "timestamp": Utc::now().timestamp_millis(),
-            "status": "green",
-            "indices": {
-                "count": total_indices,
-                "shards": {
-                    "total": total_indices,
-                    "primaries": total_indices,
-                    "replication": 0,
-                    "index": {
-                        "shards": {
-                            "min": 1,
-                            "max": 1,
-                            "avg": 1.0
-                        },
-                        "primaries": {
-                            "min": 1,
-                            "max": 1,
-                            "avg": 1.0
-                        },
-                        "replication": {
-                            "min": 0,
-                            "max": 0,
-                            "avg": 0.0
-                        }
-                    }
-                },
-                "docs": {
-                    "count": total_docs,
-                    "deleted": 0
-                },
-                "store": {
-                    "size_in_bytes": 0,
-                    "throttle_time_in_millis": 0
-                },
-                "fielddata": {
-                    "memory_size_in_bytes": 0,
-                    "evictions": 0
-                },
-                "query_cache": {
-                    "memory_size_in_bytes": 0,
-                    "total_count": 0,
-                    "hit_count": 0,
-                    "miss_count": 0,
-                    "cache_size": 0,
-                    "cache_count": 0,
-                    "evictions": 0
-                },
-                "completion": {
-                    "size_in_bytes": 0
-                },
-                "segments": {
-                    "count": 0,
-                    "memory_in_bytes": 0,
-                    "terms_memory_in_bytes": 0,
-                    "stored_fields_memory_in_bytes": 0,
-                    "term_vectors_memory_in_bytes": 0,
-                    "norms_memory_in_bytes": 0,
-                    "points_memory_in_bytes": 0,
-                    "doc_values_memory_in_bytes": 0,
-                    "index_writer_memory_in_bytes": 0,
-                    "version_map_memory_in_bytes": 0,
-                    "fixed_bit_set_memory_in_bytes": 0,
-                    "max_unsafe_auto_id_timestamp": -1,
-                    "file_sizes": {}
-                },
-                "mappings": {
-                    "field_types": [],
-                    "runtime_field_types": []
-                },
-                "analysis": {
-                    "char_filter_types": [],
-                    "tokenizer_types": [],
-                    "filter_types": [],
-                    "analyzer_types": [],
-                    "built_in_char_filters": [],
-                    "built_in_tokenizers": [],
-                    "built_in_filters": [],
-                    "built_in_analyzers": []
-                }
-            },
-            "nodes": {
-                "count": {
-                    "total": 1,
-                    "data": 1,
-                    "coordinating_only": 0,
-                    "master": 1,
-                    "ingest": 1
-                },
-                "versions": ["8.0.0"],
-                "os": {
-                    "available_processors": num_cpus::get(),
-                    "allocated_processors": num_cpus::get(),
-                    "names": []
-                },
-                "process": {
-                    "cpu": {
-                        "percent": 0
-                    },
-                    "open_file_descriptors": {
-                        "min": 0,
-                        "max": 0,
-                        "avg": 0
-                    }
-                },
-                "jvm": {
-                    "max_uptime_in_millis": 0,
-                    "versions": []
-                },
-                "fs": {
-                    "total_in_bytes": 0,
-                    "free_in_bytes": 0,
-                    "available_in_bytes": 0
-                },
-                "plugins": [],
-                "network_types": {}
-            }
-        })
+        get_cluster_stats(&self.indices).await
     }
 
     pub async fn update_mapping(
@@ -372,58 +163,7 @@ impl Storage {
         index_name: &str,
         new_mappings: serde_json::Value,
     ) -> Result<()> {
-        info!("Updating mapping for index: {}", index_name);
-        debug!("New mapping: {}", serde_json::to_string(&new_mappings).unwrap_or_default());
-
-        let mut indices = self.indices.write().await;
-        let index = indices
-            .get_mut(index_name)
-            .ok_or_else(|| {
-                error!("Index '{}' not found when updating mapping", index_name);
-                GummySearchError::IndexNotFound(index_name.to_string())
-            })?;
-
-        // Update mappings - merge with existing if present
-        if let Some(existing_mappings) = &mut index.mappings {
-            if let (Some(existing_obj), Some(new_obj)) = (existing_mappings.as_object_mut(), new_mappings.as_object()) {
-                // Merge properties
-                if let Some(existing_props) = existing_obj.get_mut("properties") {
-                    if let Some(existing_props_obj) = existing_props.as_object_mut() {
-                        for (key, value) in new_obj {
-                            existing_props_obj.insert(key.clone(), value.clone());
-                        }
-                    }
-                } else {
-                    // No existing properties, set new ones
-                    existing_obj.insert("properties".to_string(), serde_json::Value::Object(new_obj.clone()));
-                }
-            } else {
-                // Replace entire mappings
-                index.mappings = Some(new_mappings.clone());
-            }
-        } else {
-            // No existing mappings, set new ones
-            index.mappings = Some(serde_json::json!({
-                "properties": new_mappings
-            }));
-        }
-
-        // Persist updated mappings to backend
-        if let Some(backend) = &self.backend {
-            debug!("Persisting updated mapping for index '{}' to storage backend", index_name);
-            let backend_clone = backend.clone();
-            let index_name_str = index_name.to_string();
-            let final_mappings = index.mappings.clone();
-            let settings = index.settings.clone();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.store_index_metadata(&index_name_str, settings.as_ref(), final_mappings.as_ref())
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Mapping for index '{}' persisted successfully", index_name);
-        }
-
-        info!("Mapping updated successfully for index '{}'", index_name);
-        Ok(())
+        update_mapping(&self.indices, &self.backend, index_name, new_mappings).await
     }
 
     pub async fn update_settings(
@@ -431,124 +171,19 @@ impl Storage {
         index_name: &str,
         new_settings: serde_json::Value,
     ) -> Result<()> {
-        info!("Updating settings for index: {}", index_name);
-        debug!("New settings: {}", serde_json::to_string(&new_settings).unwrap_or_default());
-
-        let mut indices = self.indices.write().await;
-        let index = indices
-            .get_mut(index_name)
-            .ok_or_else(|| {
-                error!("Index '{}' not found when updating settings", index_name);
-                GummySearchError::IndexNotFound(index_name.to_string())
-            })?;
-
-        // Update settings - merge with existing if present
-        if let Some(existing_settings) = &mut index.settings {
-            if let (Some(existing_obj), Some(new_obj)) = (existing_settings.as_object_mut(), new_settings.as_object()) {
-                // Merge settings
-                for (key, value) in new_obj {
-                    existing_obj.insert(key.clone(), value.clone());
-                }
-            } else {
-                // Replace entire settings
-                index.settings = Some(new_settings.clone());
-            }
-        } else {
-            // No existing settings, set new ones
-            index.settings = Some(new_settings.clone());
-        }
-
-        // Persist updated settings to backend
-        if let Some(backend) = &self.backend {
-            debug!("Persisting updated settings for index '{}' to storage backend", index_name);
-            let backend_clone = backend.clone();
-            let index_name_str = index_name.to_string();
-            let final_settings = index.settings.clone();
-            let mappings = index.mappings.clone();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.store_index_metadata(&index_name_str, final_settings.as_ref(), mappings.as_ref())
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Settings for index '{}' persisted successfully", index_name);
-        }
-
-        info!("Settings updated successfully for index '{}'", index_name);
-        Ok(())
+        update_settings(&self.indices, &self.backend, index_name, new_settings).await
     }
 
     pub async fn delete_all_indices(&self) -> Result<()> {
-        warn!("Deleting all indices - this is a destructive operation!");
-
-        let indices = self.indices.read().await;
-        let count = indices.len();
-        let index_names: Vec<String> = indices.keys().cloned().collect();
-        drop(indices);
-
-        // Delete all from backend if available
-        if let Some(backend) = &self.backend {
-            debug!("Deleting {} indices from storage backend", count);
-            let backend_clone = backend.clone();
-            let indices_list = tokio::task::spawn_blocking({
-                let backend = backend.clone();
-                move || backend.list_indices()
-            }).await.map_err(GummySearchError::TaskJoin)??;
-
-            for index_name in indices_list {
-                let backend_clone = backend_clone.clone();
-                tokio::task::spawn_blocking(move || {
-                    backend_clone.delete_index_metadata(&index_name)
-                }).await.map_err(GummySearchError::TaskJoin)??;
-            }
-            debug!("All indices deleted from storage backend");
-        }
-
-        let mut indices = self.indices.write().await;
-        indices.clear();
-        info!("Deleted all {} indices: {:?}", count, index_names);
-        Ok(())
+        delete_all_indices(&self.indices, &self.backend).await
     }
 
     pub async fn get_index(&self, name: &str) -> Result<serde_json::Value> {
-        let indices = self.indices.read().await;
-        let index = indices
-            .get(name)
-            .ok_or_else(|| GummySearchError::IndexNotFound(name.to_string()))?;
-
-        Ok(serde_json::json!({
-            name: {
-                "settings": index.settings,
-                "mappings": index.mappings,
-                "aliases": {}
-            }
-        }))
+        get_index(&self.indices, name).await
     }
 
     pub async fn delete_index(&self, name: &str) -> Result<()> {
-        info!("Deleting index: {}", name);
-
-        // Delete from backend if available
-        if let Some(backend) = &self.backend {
-            debug!("Deleting index '{}' from storage backend", name);
-            let backend_clone = backend.clone();
-            let name_str = name.to_string();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.delete_index_metadata(&name_str)
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Index '{}' deleted from storage backend", name);
-        }
-
-        let mut indices = self.indices.write().await;
-        let doc_count = indices.get(name).map(|idx| idx.documents.len()).unwrap_or(0);
-        indices
-            .remove(name)
-            .ok_or_else(|| {
-                warn!("Attempted to delete non-existent index: {}", name);
-                GummySearchError::IndexNotFound(name.to_string())
-            })?;
-
-        info!("Index '{}' deleted successfully (had {} documents)", name, doc_count);
-        Ok(())
+        delete_index(&self.indices, &self.backend, name).await
     }
 
     pub async fn index_document(
@@ -557,32 +192,7 @@ impl Storage {
         id: &str,
         document: serde_json::Value,
     ) -> Result<()> {
-        debug!("Indexing document '{}' in index '{}'", id, index_name);
-
-        // Persist to backend if available
-        if let Some(backend) = &self.backend {
-            let backend_clone = backend.clone();
-            let index_name_str = index_name.to_string();
-            let id_str = id.to_string();
-            let doc_clone = document.clone();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.store_document(&index_name_str, &id_str, &doc_clone)
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Document '{}' persisted to storage backend", id);
-        }
-
-        let mut indices = self.indices.write().await;
-        let index = indices
-            .get_mut(index_name)
-            .ok_or_else(|| {
-                error!("Index '{}' not found when indexing document '{}'", index_name, id);
-                GummySearchError::IndexNotFound(index_name.to_string())
-            })?;
-
-        index.documents.insert(id.to_string(), document);
-        debug!("Document '{}' indexed successfully in index '{}'", id, index_name);
-        Ok(())
+        index_document(&self.indices, &self.backend, index_name, id, document).await
     }
 
     pub async fn create_document(
@@ -590,9 +200,7 @@ impl Storage {
         index_name: &str,
         document: serde_json::Value,
     ) -> Result<String> {
-        let id = Uuid::new_v4().to_string();
-        self.index_document(index_name, &id, document).await?;
-        Ok(id)
+        create_document(&self.indices, &self.backend, index_name, document).await
     }
 
     pub async fn get_document(
@@ -600,23 +208,7 @@ impl Storage {
         index_name: &str,
         id: &str,
     ) -> Result<serde_json::Value> {
-        let indices = self.indices.read().await;
-        let index = indices
-            .get(index_name)
-            .ok_or_else(|| GummySearchError::IndexNotFound(index_name.to_string()))?;
-
-        let doc = index
-            .documents
-            .get(id)
-            .ok_or_else(|| GummySearchError::DocumentNotFound(id.to_string()))?;
-
-        Ok(serde_json::json!({
-            "_index": index_name,
-            "_type": "_doc",
-            "_id": id,
-            "_version": 1,
-            "_source": doc
-        }))
+        get_document(&self.indices, index_name, id).await
     }
 
     pub async fn delete_document(
@@ -624,92 +216,11 @@ impl Storage {
         index_name: &str,
         id: &str,
     ) -> Result<()> {
-        debug!("Deleting document '{}' from index '{}'", id, index_name);
-
-        // Delete from backend if available
-        if let Some(backend) = &self.backend {
-            let backend_clone = backend.clone();
-            let index_name_str = index_name.to_string();
-            let id_str = id.to_string();
-
-            tokio::task::spawn_blocking(move || {
-                backend_clone.delete_document(&index_name_str, &id_str)
-            }).await.map_err(GummySearchError::TaskJoin)??;
-            debug!("Document '{}' deleted from storage backend", id);
-        }
-
-        let mut indices = self.indices.write().await;
-        let index = indices
-            .get_mut(index_name)
-            .ok_or_else(|| {
-                error!("Index '{}' not found when deleting document '{}'", index_name, id);
-                GummySearchError::IndexNotFound(index_name.to_string())
-            })?;
-
-        index
-            .documents
-            .remove(id)
-            .ok_or_else(|| {
-                warn!("Document '{}' not found in index '{}'", id, index_name);
-                GummySearchError::DocumentNotFound(id.to_string())
-            })?;
-
-        info!("Document '{}' deleted from index '{}'", id, index_name);
-        Ok(())
+        delete_document(&self.indices, &self.backend, index_name, id).await
     }
 
     pub async fn execute_bulk_action(&self, action: BulkAction) -> Result<(String, String, u16, Option<String>)> {
-        match action {
-            BulkAction::Index { index, id, document } => {
-                let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-                self.index_document(&index, &doc_id, document).await?;
-                Ok((index, doc_id, 201, Some("created".to_string())))
-            }
-            BulkAction::Create { index, id, document } => {
-                let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-                // Check if document exists
-                if self.index_exists(&index).await? {
-                    let indices = self.indices.read().await;
-                    if let Some(idx) = indices.get(&index) {
-                        if idx.documents.contains_key(&doc_id) {
-                            return Err(GummySearchError::InvalidRequest(
-                                format!("Document {} already exists", doc_id)
-                            ));
-                        }
-                    }
-                }
-                self.index_document(&index, &doc_id, document).await?;
-                Ok((index, doc_id, 201, Some("created".to_string())))
-            }
-            BulkAction::Update { index, id, document } => {
-                // For update, we merge with existing document or create new
-                let indices = self.indices.read().await;
-                let existing = indices.get(&index)
-                    .and_then(|idx| idx.documents.get(&id).cloned());
-                drop(indices);
-
-                let updated_doc = if let Some(mut existing_doc) = existing {
-                    // Merge: if document is an object, merge fields
-                    if let (Some(existing_obj), Some(new_obj)) = (existing_doc.as_object_mut(), document.as_object()) {
-                        for (k, v) in new_obj {
-                            existing_obj.insert(k.clone(), v.clone());
-                        }
-                        serde_json::Value::Object(existing_obj.clone())
-                    } else {
-                        document
-                    }
-                } else {
-                    document
-                };
-
-                self.index_document(&index, &id, updated_doc).await?;
-                Ok((index, id, 200, Some("updated".to_string())))
-            }
-            BulkAction::Delete { index, id } => {
-                self.delete_document(&index, &id).await?;
-                Ok((index, id, 200, Some("deleted".to_string())))
-            }
-        }
+        execute_bulk_action(&self.indices, &self.backend, action).await
     }
 
     /// Search documents in an index
