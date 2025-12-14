@@ -1717,3 +1717,428 @@ async fn test_search_post_complex_bool_query() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0]["_id"], "1");
 }
+
+// ============================================================================
+// Additional Index Handler Edge Case Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_index_without_body() {
+    let server = create_test_server();
+
+    // Create index without body (empty body)
+    let response = server.put("/test_index").await;
+    response.assert_status_ok();
+
+    // Verify index exists
+    let get_response = server.get("/test_index").await;
+    get_response.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_create_index_with_only_settings() {
+    let server = create_test_server();
+
+    // Create index with only settings (no mappings)
+    let index_body = json!({
+        "settings": {
+            "number_of_shards": 2,
+            "number_of_replicas": 1
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    let response = server.get("/test_index").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let settings = &body["test_index"]["settings"];
+    assert_eq!(settings["number_of_shards"], 2);
+    assert_eq!(settings["number_of_replicas"], 1);
+}
+
+#[tokio::test]
+async fn test_create_index_with_only_mappings() {
+    let server = create_test_server();
+
+    // Create index with only mappings (no settings)
+    let index_body = json!({
+        "mappings": {
+            "properties": {
+                "title": { "type": "text" },
+                "count": { "type": "integer" }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    let response = server.get("/test_index").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let mappings = &body["test_index"]["mappings"]["properties"];
+    assert!(mappings.get("title").is_some());
+    assert!(mappings.get("count").is_some());
+}
+
+#[tokio::test]
+async fn test_delete_all_indices() {
+    let server = create_test_server();
+
+    // Create multiple indices
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/index1").json(&index_body).await;
+    server.put("/index2").json(&index_body).await;
+    server.put("/index3").json(&index_body).await;
+
+    // Delete all indices
+    let response = server.delete("/_all").await;
+    response.assert_status_ok();
+
+    // Verify all indices are gone
+    let response = server.get("/_cat/indices?v").await;
+    let body = response.text();
+    assert!(!body.contains("index1"));
+    assert!(!body.contains("index2"));
+    assert!(!body.contains("index3"));
+}
+
+#[tokio::test]
+async fn test_update_mapping_with_nested_properties() {
+    let server = create_test_server();
+
+    // Create index with initial mapping
+    let index_body = json!({
+        "mappings": {
+            "properties": {
+                "title": { "type": "text" }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Update mapping with nested structure
+    let mapping_update = json!({
+        "properties": {
+            "user": {
+                "properties": {
+                    "name": { "type": "text" },
+                    "age": { "type": "integer" }
+                }
+            }
+        }
+    });
+
+    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    response.assert_status_ok();
+
+    // Verify nested mapping was added
+    let get_response = server.get("/test_index").await;
+    let body: serde_json::Value = get_response.json();
+    let mappings = &body["test_index"]["mappings"]["properties"];
+    assert!(mappings.get("title").is_some());
+    assert!(mappings.get("user").is_some());
+}
+
+#[tokio::test]
+async fn test_update_mapping_with_mappings_wrapper() {
+    let server = create_test_server();
+
+    // Create index
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Update mapping with mappings wrapper (alternative format)
+    let mapping_update = json!({
+        "mappings": {
+            "properties": {
+                "description": { "type": "text" }
+            }
+        }
+    });
+
+    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    response.assert_status_ok();
+
+    // Verify mapping was added
+    let get_response = server.get("/test_index").await;
+    let body: serde_json::Value = get_response.json();
+    let mappings = &body["test_index"]["mappings"]["properties"];
+    assert!(mappings.get("description").is_some());
+}
+
+#[tokio::test]
+async fn test_update_mapping_missing_properties() {
+    let server = create_test_server();
+
+    // Create index
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Try to update mapping without properties (invalid)
+    let mapping_update = json!({
+        "invalid": "structure"
+    });
+
+    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    response.assert_status(StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_update_settings_nested() {
+    let server = create_test_server();
+
+    // Create index with initial settings
+    let index_body = json!({
+        "settings": {
+            "number_of_shards": 1,
+            "analysis": {
+                "analyzer": {
+                    "custom": {
+                        "type": "standard"
+                    }
+                }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Update settings with nested structure
+    let settings_update = json!({
+        "number_of_replicas": 1,
+        "analysis": {
+            "analyzer": {
+                "custom": {
+                    "type": "standard",
+                    "stopwords": ["the", "a", "an"]
+                }
+            }
+        }
+    });
+
+    let response = server.put("/test_index/_settings").json(&settings_update).await;
+    response.assert_status_ok();
+
+    // Verify settings were merged
+    let get_response = server.get("/test_index").await;
+    let body: serde_json::Value = get_response.json();
+    let settings = &body["test_index"]["settings"];
+    assert_eq!(settings["number_of_shards"], 1); // Original preserved
+    assert_eq!(settings["number_of_replicas"], 1); // New added
+}
+
+#[tokio::test]
+async fn test_update_settings_replace() {
+    let server = create_test_server();
+
+    // Create index with settings
+    let index_body = json!({
+        "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Update settings (should merge)
+    let settings_update = json!({
+        "number_of_replicas": 2,
+        "refresh_interval": "2s"
+    });
+
+    let response = server.put("/test_index/_settings").json(&settings_update).await;
+    response.assert_status_ok();
+
+    // Verify settings were updated
+    let get_response = server.get("/test_index").await;
+    let body: serde_json::Value = get_response.json();
+    let settings = &body["test_index"]["settings"];
+    assert_eq!(settings["number_of_shards"], 1); // Original preserved
+    assert_eq!(settings["number_of_replicas"], 2); // Updated
+    assert_eq!(settings["refresh_interval"], "2s"); // New added
+}
+
+#[tokio::test]
+async fn test_update_mapping_nonexistent_index() {
+    let server = create_test_server();
+
+    // Try to update mapping for non-existent index
+    let mapping_update = json!({
+        "properties": {
+            "title": { "type": "text" }
+        }
+    });
+
+    let response = server.put("/nonexistent/_mapping").json(&mapping_update).await;
+    response.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_update_settings_nonexistent_index() {
+    let server = create_test_server();
+
+    // Try to update settings for non-existent index
+    let settings_update = json!({
+        "number_of_replicas": 1
+    });
+
+    let response = server.put("/nonexistent/_settings").json(&settings_update).await;
+    response.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_refresh_index() {
+    let server = create_test_server();
+
+    // Create index
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Refresh index
+    let response = server.post("/test_index/_refresh").await;
+    response.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_refresh_all_indices() {
+    let server = create_test_server();
+
+    // Create indices
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/index1").json(&index_body).await;
+    server.put("/index2").json(&index_body).await;
+
+    // Refresh all indices
+    let response = server.post("/_refresh").await;
+    response.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_refresh_nonexistent_index() {
+    let server = create_test_server();
+
+    // Refresh non-existent index (should still return OK - refresh is a no-op)
+    let response = server.post("/nonexistent/_refresh").await;
+    response.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_create_index_with_complex_settings() {
+    let server = create_test_server();
+
+    // Create index with complex nested settings
+    let index_body = json!({
+        "settings": {
+            "number_of_shards": 3,
+            "number_of_replicas": 2,
+            "analysis": {
+                "analyzer": {
+                    "my_analyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "stop"]
+                    }
+                },
+                "filter": {
+                    "my_stop": {
+                        "type": "stop",
+                        "stopwords": ["the", "a"]
+                    }
+                }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    let response = server.get("/test_index").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let settings = &body["test_index"]["settings"];
+    assert_eq!(settings["number_of_shards"], 3);
+    assert!(settings.get("analysis").is_some());
+}
+
+#[tokio::test]
+async fn test_create_index_with_complex_mappings() {
+    let server = create_test_server();
+
+    // Create index with complex nested mappings
+    let index_body = json!({
+        "mappings": {
+            "properties": {
+                "title": {
+                    "type": "text",
+                    "analyzer": "standard"
+                },
+                "user": {
+                    "properties": {
+                        "name": { "type": "text" },
+                        "email": { "type": "keyword" },
+                        "address": {
+                            "properties": {
+                                "street": { "type": "text" },
+                                "city": { "type": "keyword" }
+                            }
+                        }
+                    }
+                },
+                "tags": { "type": "keyword" },
+                "count": { "type": "integer" }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    let response = server.get("/test_index").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let mappings = &body["test_index"]["mappings"]["properties"];
+    assert!(mappings.get("title").is_some());
+    assert!(mappings.get("user").is_some());
+    assert!(mappings.get("tags").is_some());
+    assert!(mappings.get("count").is_some());
+}
+
+#[tokio::test]
+async fn test_update_mapping_merge_multiple_fields() {
+    let server = create_test_server();
+
+    // Create index with initial mapping
+    let index_body = json!({
+        "mappings": {
+            "properties": {
+                "field1": { "type": "text" },
+                "field2": { "type": "keyword" }
+            }
+        }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    // Update mapping with new fields (should merge)
+    let mapping_update = json!({
+        "properties": {
+            "field3": { "type": "integer" },
+            "field4": { "type": "boolean" }
+        }
+    });
+
+    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    response.assert_status_ok();
+
+    // Verify all fields are present
+    let get_response = server.get("/test_index").await;
+    let body: serde_json::Value = get_response.json();
+    let mappings = &body["test_index"]["mappings"]["properties"];
+    assert!(mappings.get("field1").is_some());
+    assert!(mappings.get("field2").is_some());
+    assert!(mappings.get("field3").is_some());
+    assert!(mappings.get("field4").is_some());
+}

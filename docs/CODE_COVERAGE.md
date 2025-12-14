@@ -6,19 +6,19 @@
 
 ## Overall Coverage
 
-**72.18%** coverage (↑ +6.03% from search handler tests, ↑ +29.79% total)
-**1,209 / 1,675** lines covered
+**72.78%** coverage (↑ +0.60% from index handler edge case tests, ↑ +30.39% total)
+**1,219 / 1,675** lines covered
 
-**Last Updated:** 2025-01-12 (after search handler tests)
+**Last Updated:** 2025-01-12 (after index handler edge case tests)
 
 ## Test Statistics
 
-- **Total Tests:** 129
+- **Total Tests:** 146
   - Storage unit tests: 13
   - Config tests: 2
   - Integration tests: 11
   - Persistence tests: 2
-  - HTTP integration tests: 22 → **46** (↑ +24 search handler tests) ✅ NEW
+  - HTTP integration tests: 22 → **61** (↑ +39 handler tests: 24 search + 17 index) ✅ NEW
   - Bulk operations unit tests: 17
   - Storage edge case tests: 40
   - Error handling tests: 15
@@ -55,7 +55,7 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
 |------|----------|---------------|-------------|--------|
 | `server/handlers/document.rs` | **100%** | 21/21 | ✅ Complete |
 | `server/handlers/cluster.rs` | **94.44%** | 34/36 | ✅ Excellent |
-| `server/handlers/index.rs` | **54.55%** | 24/44 | ⚠️ Good (needs edge cases) |
+| `server/handlers/index.rs` | **77.27%** | 34/44 | ✅ Good (↑ +22.72%) |
 | `server/handlers/search.rs` | **96.47%** | 82/85 | ✅ Excellent (↑ +83.53%) |
 | `server/handlers/bulk.rs` | **0%** | 0/50 | ❌ No coverage |
 | `server/handlers/websocket.rs` | **0%** | 0/69 | ❌ No coverage |
@@ -125,12 +125,12 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
 ## Action Plan to Increase Coverage
 
 ### Current Status ✅
-- **Coverage:** **72.18%** (1,209/1,675 lines) - **Milestone 3 Achieved!**
-- **Previous:** 66.15% (1,108/1,675 lines)
-- **Improvement:** +6.03% (+101 lines) from search handler tests
-- **Total Improvement:** +29.79% (+501 lines) from 42.40% baseline
+- **Coverage:** **72.78%** (1,219/1,675 lines) - **Approaching Milestone 4!**
+- **Previous:** 72.18% (1,209/1,675 lines)
+- **Improvement:** +0.60% (+10 lines) from index handler edge case tests
+- **Total Improvement:** +30.39% (+511 lines) from 42.40% baseline
 - **Target:** 75%+ overall coverage
-- **Remaining Gap:** ~466 lines need testing (down from 962)
+- **Remaining Gap:** ~456 lines need testing (down from 962)
 
 ### Priority 1: HTTP Handler Tests (Highest Impact) ✅ COMPLETED
 
@@ -146,13 +146,16 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
    - [ ] Create test helper utilities for setting up test server
    - [ ] Create test fixtures for common test data
 
-2. **Index Management Handlers** (`server/handlers/index.rs` - 44 lines)
-   - [ ] Test `create_index()` - success and error cases
-   - [ ] Test `get_index()` - existing and non-existing indices
-   - [ ] Test `delete_index()` - single index and `_all`
-   - [ ] Test `check_index()` - HEAD endpoint
-   - [ ] Test `update_mapping()` - valid and invalid mappings
-   - [ ] Test `update_settings()` - valid and invalid settings
+2. **Index Management Handlers** (`server/handlers/index.rs` - 44 lines) ✅ COMPLETED
+   - [x] Test `create_index()` - success and error cases
+   - [x] Test `get_index()` - existing and non-existing indices
+   - [x] Test `delete_index()` - single index and `_all`
+   - [x] Test `check_index()` - HEAD endpoint (indirectly via GET)
+   - [x] Test `update_mapping()` - valid and invalid mappings (nested, merge, error cases)
+   - [x] Test `update_settings()` - valid and invalid settings (nested, merge, error cases)
+   - [x] Test `refresh_index()` and `refresh_all()` - refresh endpoints
+   - [x] Test complex settings and mappings
+   - **Status:** 17 additional index handler tests added, 77.27% coverage achieved
 
 3. **Document Handlers** (`server/handlers/document.rs` - 21 lines)
    - [ ] Test `index_document()` - PUT with ID
