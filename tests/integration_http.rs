@@ -549,7 +549,7 @@ async fn test_bulk_index_operations() {
     // Bulk index operations (NDJSON format)
     // Note: axum-test doesn't have a .text() method, so we need to use a workaround
     // We'll construct the request manually with a Body
-    let bulk_body = r#"{"index":{"_index":"test_index","_id":"1"}}
+    let _bulk_body = r#"{"index":{"_index":"test_index","_id":"1"}}
 {"title":"Document 1","body":"Content 1"}
 {"index":{"_index":"test_index","_id":"2"}}
 {"title":"Document 2","body":"Content 2"}
@@ -1060,3 +1060,660 @@ async fn test_bulk_large_batch() {
     assert_eq!(search_body["hits"]["total"]["value"], 10);
 }
 */
+
+// ============================================================================
+// Additional Search Handler Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_search_get_with_query_param() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Guide", "body": "Learn Rust" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "Python Guide", "body": "Learn Python" }))
+        .await;
+
+    // GET search with q parameter
+    let response = server.get("/test_index/_search?q=Rust").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert!(hits.len() > 0);
+}
+
+#[tokio::test]
+async fn test_search_get_without_query_param() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Doc 1" }))
+        .await;
+
+    // GET search without q parameter (should use match_all)
+    let response = server.get("/test_index/_search").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+}
+
+#[tokio::test]
+async fn test_search_get_with_pagination() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    for i in 1..=5 {
+        server.put(&format!("/test_index/_doc/{}", i))
+            .json(&json!({ "title": format!("Doc {}", i) }))
+            .await;
+    }
+
+    // GET search with from and size
+    let response = server.get("/test_index/_search?from=2&size=2").await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_term_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "status": "active", "name": "Test" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "status": "inactive", "name": "Test" }))
+        .await;
+
+    // Search with term query
+    let query = json!({
+        "query": {
+            "term": {
+                "status": "active"
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["_id"], "1");
+}
+
+#[tokio::test]
+async fn test_search_post_range_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "age": 25 }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "age": 30 }))
+        .await;
+    server.put("/test_index/_doc/3")
+        .json(&json!({ "age": 35 }))
+        .await;
+
+    // Search with range query
+    let query = json!({
+        "query": {
+            "range": {
+                "age": {
+                    "gte": 28,
+                    "lte": 40
+                }
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_wildcard_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "test" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "testing" }))
+        .await;
+    server.put("/test_index/_doc/3")
+        .json(&json!({ "title": "best" }))
+        .await;
+
+    // Search with wildcard query
+    let query = json!({
+        "query": {
+            "wildcard": {
+                "title": "test*"
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_prefix_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "test" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "testing" }))
+        .await;
+
+    // Search with prefix query
+    let query = json!({
+        "query": {
+            "prefix": {
+                "title": "test"
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_bool_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Guide", "status": "published" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "Python Guide", "status": "draft" }))
+        .await;
+
+    // Search with bool query
+    let query = json!({
+        "query": {
+            "bool": {
+                "must": [
+                    { "match": { "title": "Guide" } }
+                ],
+                "filter": [
+                    { "term": { "status": "published" } }
+                ]
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["_id"], "1");
+}
+
+#[tokio::test]
+async fn test_search_post_multi_match_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Guide", "description": "Learn Rust" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "Python Tutorial", "description": "Learn Python" }))
+        .await;
+
+    // Search with multi_match query
+    let query = json!({
+        "query": {
+            "multi_match": {
+                "query": "Rust",
+                "fields": ["title", "description"]
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["_id"], "1");
+}
+
+#[tokio::test]
+async fn test_search_post_match_phrase_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Programming Guide" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "Python Tutorial" }))
+        .await;
+
+    // Search with match_phrase query
+    let query = json!({
+        "query": {
+            "match_phrase": {
+                "title": "Rust Programming"
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["_id"], "1");
+}
+
+#[tokio::test]
+async fn test_search_post_with_sorting() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "name": "Alice", "age": 30 }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "name": "Bob", "age": 25 }))
+        .await;
+    server.put("/test_index/_doc/3")
+        .json(&json!({ "name": "Charlie", "age": 35 }))
+        .await;
+
+    // Search with sorting
+    let query = json!({
+        "query": { "match_all": {} },
+        "sort": {
+            "age": {
+                "order": "asc"
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 3);
+    // First should be Bob (age 25)
+    assert_eq!(hits[0]["_id"], "2");
+}
+
+#[tokio::test]
+async fn test_search_post_with_source_filtering() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Test", "body": "Content", "meta": "data" }))
+        .await;
+
+    // Search with _source filtering (include only title)
+    let query = json!({
+        "query": { "match_all": {} },
+        "_source": ["title"]
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    let source = &hits[0]["_source"];
+    assert!(source.get("title").is_some());
+    // body and meta should be filtered out
+    assert!(source.get("body").is_none());
+    assert!(source.get("meta").is_none());
+}
+
+#[tokio::test]
+async fn test_search_post_with_highlighting() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Programming Guide" }))
+        .await;
+
+    // Search with highlighting
+    let query = json!({
+        "query": {
+            "match": {
+                "title": "Rust"
+            }
+        },
+        "highlight": {
+            "fields": {
+                "title": {}
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    // Highlighting should be present
+    assert!(hits[0].get("highlight").is_some());
+}
+
+#[tokio::test]
+async fn test_search_post_nonexistent_index() {
+    let server = create_test_server();
+
+    // Search non-existent index
+    let query = json!({
+        "query": { "match_all": {} }
+    });
+
+    let response = server.post("/nonexistent/_search").json(&query).await;
+    response.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_search_get_nonexistent_index() {
+    let server = create_test_server();
+
+    // GET search non-existent index
+    let response = server.get("/nonexistent/_search").await;
+    response.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_search_multi_index() {
+    let server = create_test_server();
+
+    // Create multiple indices
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/index1").json(&index_body).await;
+    server.put("/index2").json(&index_body).await;
+
+    // Add documents to each
+    server.put("/index1/_doc/1")
+        .json(&json!({ "title": "Index 1 Doc" }))
+        .await;
+    server.put("/index2/_doc/1")
+        .json(&json!({ "title": "Index 2 Doc" }))
+        .await;
+
+    // Multi-index search
+    let query = json!({
+        "indices": ["index1", "index2"],
+        "query": { "match_all": {} }
+    });
+
+    let response = server.post("/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_multi_index_with_wildcard() {
+    let server = create_test_server();
+
+    // Create indices
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index_1").json(&index_body).await;
+    server.put("/test_index_2").json(&index_body).await;
+    server.put("/other_index").json(&index_body).await;
+
+    // Add documents
+    server.put("/test_index_1/_doc/1")
+        .json(&json!({ "title": "Test 1" }))
+        .await;
+    server.put("/test_index_2/_doc/1")
+        .json(&json!({ "title": "Test 2" }))
+        .await;
+
+    // Multi-index search with wildcard
+    let query = json!({
+        "indices": ["test_index_*"],
+        "query": { "match_all": {} }
+    });
+
+    let response = server.post("/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_multi_index_default_all() {
+    let server = create_test_server();
+
+    // Create indices
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/index1").json(&index_body).await;
+    server.put("/index2").json(&index_body).await;
+
+    // Add documents
+    server.put("/index1/_doc/1")
+        .json(&json!({ "title": "Doc 1" }))
+        .await;
+    server.put("/index2/_doc/1")
+        .json(&json!({ "title": "Doc 2" }))
+        .await;
+
+    // Multi-index search without indices (should search all)
+    let query = json!({
+        "query": { "match_all": {} }
+    });
+
+    let response = server.post("/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_terms_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "status": "active" }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "status": "pending" }))
+        .await;
+    server.put("/test_index/_doc/3")
+        .json(&json!({ "status": "inactive" }))
+        .await;
+
+    // Search with terms query
+    let query = json!({
+        "query": {
+            "terms": {
+                "status": ["active", "pending"]
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 2);
+}
+
+#[tokio::test]
+async fn test_search_post_without_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Doc 1" }))
+        .await;
+
+    // Search without query (should default to match_all)
+    let query = json!({});
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+}
+
+#[tokio::test]
+async fn test_search_post_complex_bool_query() {
+    let server = create_test_server();
+
+    // Create index and documents
+    let index_body = json!({
+        "settings": { "number_of_shards": 1 }
+    });
+    server.put("/test_index").json(&index_body).await;
+
+    server.put("/test_index/_doc/1")
+        .json(&json!({ "title": "Rust Guide", "status": "published", "tags": ["programming"] }))
+        .await;
+    server.put("/test_index/_doc/2")
+        .json(&json!({ "title": "Python Guide", "status": "draft", "tags": ["programming"] }))
+        .await;
+    server.put("/test_index/_doc/3")
+        .json(&json!({ "title": "Rust Tutorial", "status": "published", "tags": ["tutorial"] }))
+        .await;
+
+    // Complex bool query with must, should, must_not
+    let query = json!({
+        "query": {
+            "bool": {
+                "must": [
+                    { "match": { "title": "Guide" } }
+                ],
+                "should": [
+                    { "term": { "tags": "programming" } }
+                ],
+                "must_not": [
+                    { "term": { "status": "draft" } }
+                ]
+            }
+        }
+    });
+
+    let response = server.post("/test_index/_search").json(&query).await;
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    let hits = body["hits"]["hits"].as_array().unwrap();
+    // Should match doc 1 (Guide + published, not draft)
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["_id"], "1");
+}

@@ -6,22 +6,22 @@
 
 ## Overall Coverage
 
-**66.15%** coverage (↑ +0.18% from error handling tests, ↑ +23.76% total)
-**1,108 / 1,675** lines covered
+**72.18%** coverage (↑ +6.03% from search handler tests, ↑ +29.79% total)
+**1,209 / 1,675** lines covered
 
-**Last Updated:** 2025-01-12 (after error handling tests)
+**Last Updated:** 2025-01-12 (after search handler tests)
 
 ## Test Statistics
 
-- **Total Tests:** 105
+- **Total Tests:** 129
   - Storage unit tests: 13
   - Config tests: 2
   - Integration tests: 11
   - Persistence tests: 2
-  - HTTP integration tests: 22
+  - HTTP integration tests: 22 → **46** (↑ +24 search handler tests) ✅ NEW
   - Bulk operations unit tests: 17
   - Storage edge case tests: 40
-  - **Error handling tests: 15** ✅ NEW
+  - Error handling tests: 15
 - **Test Files:** 7
 - **Source Files:** 40
 
@@ -56,7 +56,7 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
 | `server/handlers/document.rs` | **100%** | 21/21 | ✅ Complete |
 | `server/handlers/cluster.rs` | **94.44%** | 34/36 | ✅ Excellent |
 | `server/handlers/index.rs` | **54.55%** | 24/44 | ⚠️ Good (needs edge cases) |
-| `server/handlers/search.rs` | **12.94%** | 11/85 | ⚠️ Needs more tests |
+| `server/handlers/search.rs` | **96.47%** | 82/85 | ✅ Excellent (↑ +83.53%) |
 | `server/handlers/bulk.rs` | **0%** | 0/50 | ❌ No coverage |
 | `server/handlers/websocket.rs` | **0%** | 0/69 | ❌ No coverage |
 | `server/routes/mod.rs` | **100%** | 14/14 | ✅ Complete |
@@ -125,12 +125,12 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
 ## Action Plan to Increase Coverage
 
 ### Current Status ✅
-- **Coverage:** **65.97%** (1,105/1,675 lines) - **Milestone 2 Achieved!**
-- **Previous:** 60.92% (1,018/1,671 lines)
-- **Improvement:** +5.05% (+87 lines) from storage edge case tests
-- **Total Improvement:** +23.58% (+397 lines) from 42.40% baseline
+- **Coverage:** **72.18%** (1,209/1,675 lines) - **Milestone 3 Achieved!**
+- **Previous:** 66.15% (1,108/1,675 lines)
+- **Improvement:** +6.03% (+101 lines) from search handler tests
+- **Total Improvement:** +29.79% (+501 lines) from 42.40% baseline
 - **Target:** 75%+ overall coverage
-- **Remaining Gap:** ~570 lines need testing (down from 962)
+- **Remaining Gap:** ~466 lines need testing (down from 962)
 
 ### Priority 1: HTTP Handler Tests (Highest Impact) ✅ COMPLETED
 
@@ -160,11 +160,13 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
    - [ ] Test `get_document()` - existing and non-existing documents
    - [ ] Test `delete_document()` - success and 404 cases
 
-4. **Search Handlers** (`server/handlers/search.rs` - 85 lines)
-   - [ ] Test `search_post()` - all query types
-   - [ ] Test `search_get()` - query parameter parsing
-   - [ ] Test `search_multi_index()` - multiple indices and wildcards
-   - [ ] Test pagination, sorting, highlighting, source filtering
+4. **Search Handlers** (`server/handlers/search.rs` - 85 lines) ✅ COMPLETED
+   - [x] Test `search_post()` - all query types (match, term, range, wildcard, prefix, bool, multi_match, match_phrase, terms)
+   - [x] Test `search_get()` - query parameter parsing (q, from, size)
+   - [x] Test `search_multi_index()` - multiple indices and wildcards
+   - [x] Test pagination, sorting, highlighting, source filtering
+   - [x] Test error cases (non-existent index)
+   - **Status:** 24 additional search handler tests added, 96.47% coverage achieved
 
 5. **Bulk Operations Handler** (`server/handlers/bulk.rs` - 50 lines)
    - [ ] Test bulk index operations
@@ -194,14 +196,14 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
 **Approach:** ✅ Used `axum-test` v16 (compatible with axum 0.7). Created integration test suite in `tests/integration_http.rs`.
 
 **Results:**
-- ✅ 22 HTTP integration tests passing
+- ✅ 46 HTTP integration tests passing (↑ +24 search handler tests)
 - ✅ Document handlers: 100% coverage
 - ✅ Cluster handlers: 94.44% coverage
+- ✅ **Search handlers: 96.47% coverage** (↑ +83.53% improvement!) ✅ NEW
 - ✅ All route modules: 100% coverage
 - ✅ Statistics module: 100% coverage (covered via HTTP tests)
 - ⚠️ Index handlers: 54.55% (needs more edge cases)
-- ⚠️ Search handlers: 12.94% (needs more query types)
-- ❌ Bulk handlers: 0% (still needs tests)
+- ❌ Bulk handlers: 0% (still needs tests - blocked by axum-test limitations)
 - ❌ WebSocket handlers: 0% (still needs tests)
 
 ### Priority 2: Statistics Module Tests ✅ COMPLETED
@@ -338,15 +340,15 @@ The HTTP server layer now has **substantial coverage** thanks to HTTP integratio
   - ✅ Priority 4: Storage Edge Case Tests (40 tests added)
 - **Time Taken:** ~3 hours
 
-### Milestone 3: 70% Coverage (Short-term - 1-2 weeks)
+### Milestone 3: 70%+ Coverage ✅ ACHIEVED!
 - **Target:** 70%
-- **Gap:** +4.03% (~68 lines)
-- **Focus:**
-  - Priority 3: Error Handling Tests (+1% expected)
-  - Additional search handler tests (+2-3% expected)
-- **Estimated Time:** 3-5 hours
+- **Achieved:** 72.18%
+- **Completed:**
+  - ✅ Priority 3: Error Handling Tests (+0.18%)
+  - ✅ Search Handler Tests (+6.03%)
+- **Time Taken:** ~4 hours
 
-### Milestone 3: 75%+ Coverage (Long-term - 2-3 months)
+### Milestone 4: 75%+ Coverage (Short-term - 1-2 weeks)
 - **Target:** 75%+
 - **Gap:** +5% (~84 lines)
 - **Focus:**
