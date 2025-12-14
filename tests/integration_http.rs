@@ -2142,3 +2142,30 @@ async fn test_update_mapping_merge_multiple_fields() {
     assert!(mappings.get("field3").is_some());
     assert!(mappings.get("field4").is_some());
 }
+
+// ============================================================================
+// Server Module Utility Function Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_root_handler() {
+    let server = create_test_server();
+
+    // Test root endpoint
+    let response = server.get("/").await;
+    response.assert_status_ok();
+    let body = response.text();
+    assert!(body.contains("Gummy Search"));
+}
+
+#[tokio::test]
+async fn test_web_index_handler() {
+    let server = create_test_server();
+
+    // Test web index endpoint
+    let response = server.get("/web/").await;
+    response.assert_status_ok();
+    let body = response.text();
+    // Should return HTML content
+    assert!(body.contains("<!DOCTYPE html>") || body.contains("<html") || body.contains("Gummy Search"));
+}
