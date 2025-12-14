@@ -528,9 +528,8 @@ gummy-search/
 │   ├── bulk.rs            # Bulk operations
 │   ├── models.rs          # Data models
 │   └── error.rs           # Error handling
-├── tests/
-│   └── integration.rs     # Integration tests
-└── gummy_wiki/   # Laravel Scout integration example
+└───tests/
+    └── integration.rs     # Integration tests
 ```
 
 ### Example API Client
