@@ -1,9 +1,9 @@
 //! Statistics and monitoring operations
 
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::Utc;
 
 use crate::storage::Index;
 
@@ -17,8 +17,8 @@ pub async fn get_cluster_stats(
     let total_docs: usize = indices_guard.values().map(|idx| idx.documents.len()).sum();
 
     serde_json::json!({
-        "cluster_name": "gummy-search",
-        "cluster_uuid": "gummy-search-cluster",
+        "cluster_name": "gbs",
+        "cluster_uuid": "gbs-cluster",
         "timestamp": Utc::now().timestamp_millis(),
         "status": "green",
         "indices": {

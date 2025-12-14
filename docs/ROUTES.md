@@ -1,6 +1,6 @@
-# Gummy Search API Routes
+# Gummy Bear Search API Routes
 
-This document provides a comprehensive overview of all API routes in Gummy Search, organized by category.
+This document provides a comprehensive overview of all API routes in Gummy Bear Search, organized by category.
 
 ## Base URL
 
@@ -26,7 +26,7 @@ All routes are relative to the base URL (default: `http://localhost:9200`).
 - **Path:** `/`
 - **Handler:** `root()`
 - **Description:** Returns a simple text message identifying the service
-- **Response:** `200 OK` with plain text: "Gummy Search - Elasticsearch-compatible search engine"
+- **Response:** `200 OK` with plain text: "Gummy Bear Search - Elasticsearch-compatible search engine"
 
 ### Web Dashboard
 - **Method:** `GET`

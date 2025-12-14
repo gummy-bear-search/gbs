@@ -1,6 +1,6 @@
 //! Unit tests for Config module
 
-use gummy_search::config::Config;
+use gbs::config::Config;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -148,7 +148,7 @@ fn test_env_override_multiple() {
 #[test]
 fn test_load_from_file() {
     let temp_dir = TempDir::new().unwrap();
-    let config_file = temp_dir.path().join("gummy-search.yaml");
+    let config_file = temp_dir.path().join("gbs.yaml");
 
     let yaml = r#"
 server:
@@ -179,7 +179,7 @@ es_version: "7.0.0"
 #[test]
 fn test_load_from_file_invalid_yaml() {
     let temp_dir = TempDir::new().unwrap();
-    let config_file = temp_dir.path().join("gummy-search.yaml");
+    let config_file = temp_dir.path().join("gbs.yaml");
 
     fs::write(&config_file, "invalid: yaml: content: [").unwrap();
 
@@ -200,7 +200,7 @@ fn test_load_from_file_invalid_yaml() {
 #[test]
 fn test_server_addr() {
     let config = Config {
-        server: gummy_search::config::ServerConfig {
+        server: gbs::config::ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 8080,
         },
@@ -214,7 +214,7 @@ fn test_server_addr() {
 #[test]
 fn test_server_addr_invalid_host() {
     let config = Config {
-        server: gummy_search::config::ServerConfig {
+        server: gbs::config::ServerConfig {
             host: "invalid-host".to_string(),
             port: 8080,
         },
@@ -230,7 +230,7 @@ fn test_server_addr_invalid_host() {
 fn test_config_load_with_env_overrides() {
     // Create a config file
     let temp_dir = TempDir::new().unwrap();
-    let config_file = temp_dir.path().join("gummy-search.yaml");
+    let config_file = temp_dir.path().join("gbs.yaml");
 
     let yaml = r#"
 server:
@@ -252,8 +252,7 @@ es_version: "7.0.0"
     // Config::load() should use file + env overrides
     // Note: This test might fail if there's an existing config file
     // In that case, we'll test the env override part separately
-    let config = Config::default()
-        .with_env_overrides();
+    let config = Config::default().with_env_overrides();
 
     // Environment should override file values
     assert_eq!(config.server.port, 9300);

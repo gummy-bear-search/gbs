@@ -413,13 +413,13 @@ Before targeting ES 8.x, we should:
 
 ### Current Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "6.8.23"  # Current default
 ```
 
 ### ES 8.x Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "8.11.0"  # ES 8.x default
 security:
   enabled: true  # Required in ES 8.x

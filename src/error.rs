@@ -4,10 +4,10 @@ use axum::{
 };
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, GummySearchError>;
+pub type Result<T> = std::result::Result<T, GbsError>;
 
 #[derive(Error, Debug)]
-pub enum GummySearchError {
+pub enum GbsError {
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 
@@ -30,16 +30,16 @@ pub enum GummySearchError {
     TaskJoin(#[from] tokio::task::JoinError),
 }
 
-impl IntoResponse for GummySearchError {
+impl IntoResponse for GbsError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            GummySearchError::IndexNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
-            GummySearchError::DocumentNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
-            GummySearchError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            GummySearchError::Elasticsearch(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
-            GummySearchError::Json(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            GummySearchError::Storage(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
-            GummySearchError::TaskJoin(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            GbsError::IndexNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
+            GbsError::DocumentNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
+            GbsError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            GbsError::Elasticsearch(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            GbsError::Json(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            GbsError::Storage(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            GbsError::TaskJoin(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
         let body = serde_json::json!({

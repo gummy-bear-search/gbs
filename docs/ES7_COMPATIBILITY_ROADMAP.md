@@ -345,13 +345,13 @@ Before targeting ES 7.x, we should:
 
 ### Current Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "6.8.23"  # Current default
 ```
 
 ### ES 7.x Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "7.17.15"  # ES 7.x default
 ```
 

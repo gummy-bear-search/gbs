@@ -408,7 +408,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <p class="text-sm text-gray-600">Cluster Name</p>
-                        <p class="font-semibold">${stats.cluster_name || 'gummy-search'}</p>
+                        <p class="font-semibold">${stats.cluster_name || 'gbs'}</p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-600">Version</p>

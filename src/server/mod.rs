@@ -1,16 +1,16 @@
-//! HTTP server module for Gummy Search
+//! HTTP server module for Gummy Bear Search
 
 mod handlers;
 mod routes;
 
-pub use routes::create_router;
 pub use handlers::*;
+pub use routes::create_router;
 
 // Re-export create_router as create_app for backward compatibility
 pub use routes::create_router as create_app;
 
-use std::sync::Arc;
 use crate::storage::Storage;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {

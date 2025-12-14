@@ -3,13 +3,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use tracing::{info, debug, warn, error};
 
-use crate::error::{GummySearchError, Result};
+use crate::bulk_ops::BulkAction;
+use crate::error::{GbsError, Result};
 use crate::storage::Index;
 use crate::storage_backend::SledBackend;
-use crate::bulk_ops::BulkAction;
 
 /// Index a document (create or update)
 pub async fn index_document(
@@ -30,20 +30,26 @@ pub async fn index_document(
 
         tokio::task::spawn_blocking(move || {
             backend_clone.store_document(&index_name_str, &id_str, &doc_clone)
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
         debug!("Document '{}' persisted to storage backend", id);
     }
 
     let mut indices_guard = indices.write().await;
-    let index = indices_guard
-        .get_mut(index_name)
-        .ok_or_else(|| {
-            error!("Index '{}' not found when indexing document '{}'", index_name, id);
-            GummySearchError::IndexNotFound(index_name.to_string())
-        })?;
+    let index = indices_guard.get_mut(index_name).ok_or_else(|| {
+        error!(
+            "Index '{}' not found when indexing document '{}'",
+            index_name, id
+        );
+        GbsError::IndexNotFound(index_name.to_string())
+    })?;
 
     index.documents.insert(id.to_string(), document);
-    debug!("Document '{}' indexed successfully in index '{}'", id, index_name);
+    debug!(
+        "Document '{}' indexed successfully in index '{}'",
+        id, index_name
+    );
     Ok(())
 }
 
@@ -68,12 +74,12 @@ pub async fn get_document(
     let indices_guard = indices.read().await;
     let index = indices_guard
         .get(index_name)
-        .ok_or_else(|| GummySearchError::IndexNotFound(index_name.to_string()))?;
+        .ok_or_else(|| GbsError::IndexNotFound(index_name.to_string()))?;
 
     let doc = index
         .documents
         .get(id)
-        .ok_or_else(|| GummySearchError::DocumentNotFound(id.to_string()))?;
+        .ok_or_else(|| GbsError::DocumentNotFound(id.to_string()))?;
 
     Ok(serde_json::json!({
         "_index": index_name,
@@ -101,25 +107,25 @@ pub async fn delete_document(
 
         tokio::task::spawn_blocking(move || {
             backend_clone.delete_document(&index_name_str, &id_str)
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
         debug!("Document '{}' deleted from storage backend", id);
     }
 
     let mut indices_guard = indices.write().await;
-    let index = indices_guard
-        .get_mut(index_name)
-        .ok_or_else(|| {
-            error!("Index '{}' not found when deleting document '{}'", index_name, id);
-            GummySearchError::IndexNotFound(index_name.to_string())
-        })?;
+    let index = indices_guard.get_mut(index_name).ok_or_else(|| {
+        error!(
+            "Index '{}' not found when deleting document '{}'",
+            index_name, id
+        );
+        GbsError::IndexNotFound(index_name.to_string())
+    })?;
 
-    index
-        .documents
-        .remove(id)
-        .ok_or_else(|| {
-            warn!("Document '{}' not found in index '{}'", id, index_name);
-            GummySearchError::DocumentNotFound(id.to_string())
-        })?;
+    index.documents.remove(id).ok_or_else(|| {
+        warn!("Document '{}' not found in index '{}'", id, index_name);
+        GbsError::DocumentNotFound(id.to_string())
+    })?;
 
     info!("Document '{}' deleted from index '{}'", id, index_name);
     Ok(())
@@ -132,37 +138,53 @@ pub async fn execute_bulk_action(
     action: BulkAction,
 ) -> Result<(String, String, u16, Option<String>)> {
     match action {
-        BulkAction::Index { index, id, document } => {
+        BulkAction::Index {
+            index,
+            id,
+            document,
+        } => {
             let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             index_document(indices, backend, &index, &doc_id, document).await?;
             Ok((index, doc_id, 201, Some("created".to_string())))
         }
-        BulkAction::Create { index, id, document } => {
+        BulkAction::Create {
+            index,
+            id,
+            document,
+        } => {
             let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             // Check if document exists
             if index_exists(indices, &index).await? {
                 let indices_guard = indices.read().await;
                 if let Some(idx) = indices_guard.get(&index) {
                     if idx.documents.contains_key(&doc_id) {
-                        return Err(GummySearchError::InvalidRequest(
-                            format!("Document {} already exists", doc_id)
-                        ));
+                        return Err(GbsError::InvalidRequest(format!(
+                            "Document {} already exists",
+                            doc_id
+                        )));
                     }
                 }
             }
             index_document(indices, backend, &index, &doc_id, document).await?;
             Ok((index, doc_id, 201, Some("created".to_string())))
         }
-        BulkAction::Update { index, id, document } => {
+        BulkAction::Update {
+            index,
+            id,
+            document,
+        } => {
             // For update, we merge with existing document or create new
             let indices_guard = indices.read().await;
-            let existing = indices_guard.get(&index)
+            let existing = indices_guard
+                .get(&index)
                 .and_then(|idx| idx.documents.get(&id).cloned());
             drop(indices_guard);
 
             let updated_doc = if let Some(mut existing_doc) = existing {
                 // Merge: if document is an object, merge fields
-                if let (Some(existing_obj), Some(new_obj)) = (existing_doc.as_object_mut(), document.as_object()) {
+                if let (Some(existing_obj), Some(new_obj)) =
+                    (existing_doc.as_object_mut(), document.as_object())
+                {
                     for (k, v) in new_obj {
                         existing_obj.insert(k.clone(), v.clone());
                     }
@@ -185,10 +207,7 @@ pub async fn execute_bulk_action(
 }
 
 // Helper function for index_exists (needed by execute_bulk_action)
-async fn index_exists(
-    indices: &Arc<RwLock<HashMap<String, Index>>>,
-    name: &str,
-) -> Result<bool> {
+async fn index_exists(indices: &Arc<RwLock<HashMap<String, Index>>>, name: &str) -> Result<bool> {
     let indices_guard = indices.read().await;
     Ok(indices_guard.contains_key(name))
 }

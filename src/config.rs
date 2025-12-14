@@ -103,12 +103,14 @@ impl Config {
         // Override with environment variables
         let config = config.with_env_overrides();
 
-        info!("Loaded configuration: server={}:{}, data_dir={}, log_level={}, es_version={}",
-              config.server.host,
-              config.server.port,
-              config.storage.data_dir,
-              config.logging.level,
-              config.es_version);
+        info!(
+            "Loaded configuration: server={}:{}, data_dir={}, log_level={}, es_version={}",
+            config.server.host,
+            config.server.port,
+            config.storage.data_dir,
+            config.logging.level,
+            config.es_version
+        );
 
         Ok(config)
     }
@@ -117,23 +119,20 @@ impl Config {
     ///
     /// Tries to load from:
     /// 1. GUMMY_CONFIG environment variable (if set)
-    /// 2. ./gummy-search.yaml
-    /// 3. ./config/gummy-search.yaml
-    /// 4. ~/.config/gummy-search/gummy-search.yaml
+    /// 2. ./gbs.yaml
+    /// 3. ./config/gbs.yaml
+    /// 4. ~/.config/gbs/gbs.yaml
     fn load_from_file() -> anyhow::Result<Self> {
         let config_paths = vec![
-            std::env::var("GUMMY_CONFIG")
-                .ok()
-                .map(PathBuf::from),
-            Some(PathBuf::from("./gummy-search.yaml")),
-            Some(PathBuf::from("./config/gummy-search.yaml")),
-            dirs::home_dir()
-                .map(|mut p| {
-                    p.push(".config");
-                    p.push("gummy-search");
-                    p.push("gummy-search.yaml");
-                    p
-                }),
+            std::env::var("GUMMY_CONFIG").ok().map(PathBuf::from),
+            Some(PathBuf::from("./gbs.yaml")),
+            Some(PathBuf::from("./config/gbs.yaml")),
+            dirs::home_dir().map(|mut p| {
+                p.push(".config");
+                p.push("gbs");
+                p.push("gbs.yaml");
+                p
+            }),
         ];
 
         for path in config_paths.into_iter().flatten() {
@@ -188,7 +187,9 @@ impl Config {
     /// Get server address as SocketAddr
     pub fn server_addr(&self) -> std::net::SocketAddr {
         std::net::SocketAddr::from((
-            self.server.host.parse::<std::net::IpAddr>()
+            self.server
+                .host
+                .parse::<std::net::IpAddr>()
                 .unwrap_or_else(|_| std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
             self.server.port,
         ))

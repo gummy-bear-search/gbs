@@ -1,6 +1,6 @@
-# Gummy Search API Documentation
+# Gummy Bear Search API Documentation
 
-This document provides comprehensive API documentation for Gummy Search, an Elasticsearch-compatible search engine.
+This document provides comprehensive API documentation for Gummy Bear Search, an Elasticsearch-compatible search engine.
 
 > **Quick Reference:** For a quick overview of all routes, see [ROUTES.md](./ROUTES.md)
 
@@ -13,7 +13,7 @@ http://localhost:9200
 
 ## Authentication
 
-Currently, Gummy Search does not require authentication. All endpoints are publicly accessible.
+Currently, Gummy Bear Search does not require authentication. All endpoints are publicly accessible.
 
 ## Content Types
 
@@ -628,7 +628,7 @@ curl -X GET "http://localhost:9200/_cluster/health"
 **Response:**
 ```json
 {
-  "cluster_name": "gummy-search",
+  "cluster_name": "gbs",
   "indices": {
     "count": 5,
     "docs": {
@@ -706,11 +706,11 @@ curl -X GET "http://localhost:9200/_aliases"
 
 ## Rate Limiting
 
-Currently, Gummy Search does not implement rate limiting. All requests are processed immediately.
+Currently, Gummy Bear Search does not implement rate limiting. All requests are processed immediately.
 
 ## Compatibility
 
-Gummy Search is designed to be compatible with Elasticsearch 6.8.23 API. However, not all features are implemented. See the [README](../README.md) for a complete list of implemented features.
+Gummy Bear Search is designed to be compatible with Elasticsearch 6.8.23 API. However, not all features are implemented. See the [README](../README.md) for a complete list of implemented features.
 
 ## Notes
 

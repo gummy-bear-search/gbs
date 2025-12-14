@@ -1,4 +1,4 @@
-use crate::error::{GummySearchError, Result};
+use crate::error::{GbsError, Result};
 use serde_json;
 use sled::Db;
 use std::path::Path;
@@ -9,9 +9,9 @@ use tracing::{debug, warn};
 const INDEX_PREFIX: &str = "index:";
 const DOC_PREFIX: &str = "doc:";
 
-/// Convert sled error to GummySearchError
-fn sled_error(e: sled::Error) -> GummySearchError {
-    GummySearchError::Storage(format!("Sled error: {}", e))
+/// Convert sled error to GbsError
+fn sled_error(e: sled::Error) -> GbsError {
+    GbsError::Storage(format!("Sled error: {}", e))
 }
 
 /// Sled-based persistent storage backend
@@ -23,10 +23,8 @@ impl SledBackend {
     /// Create a new Sled backend with the given data directory
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let db = sled::open(path)
-            .map_err(|e| GummySearchError::Storage(format!("Failed to open sled database: {}", e)))?;
-        Ok(Self {
-            db: Arc::new(db),
-        })
+            .map_err(|e| GbsError::Storage(format!("Failed to open sled database: {}", e)))?;
+        Ok(Self { db: Arc::new(db) })
     }
 
     /// Get the sled database instance
@@ -49,25 +47,28 @@ impl SledBackend {
             "mappings": mappings
         });
         let value = serde_json::to_vec(&metadata)?;
-        self.db.insert(key.as_bytes(), value)
-            .map_err(|e| {
-                warn!("Failed to store index metadata for '{}': {}", index_name, e);
-                GummySearchError::Storage(format!("Failed to store index metadata: {}", e))
-            })?;
-        self.db.flush()
-            .map_err(|e| {
-                warn!("Failed to flush database after storing index '{}': {}", index_name, e);
-                GummySearchError::Storage(format!("Failed to flush database: {}", e))
-            })?;
+        self.db.insert(key.as_bytes(), value).map_err(|e| {
+            warn!("Failed to store index metadata for '{}': {}", index_name, e);
+            GbsError::Storage(format!("Failed to store index metadata: {}", e))
+        })?;
+        self.db.flush().map_err(|e| {
+            warn!(
+                "Failed to flush database after storing index '{}': {}",
+                index_name, e
+            );
+            GbsError::Storage(format!("Failed to flush database: {}", e))
+        })?;
         debug!("Index metadata stored successfully for '{}'", index_name);
         Ok(())
     }
 
     /// Load index metadata
-    pub fn load_index_metadata(&self, index_name: &str) -> Result<Option<(Option<serde_json::Value>, Option<serde_json::Value>)>> {
+    pub fn load_index_metadata(
+        &self,
+        index_name: &str,
+    ) -> Result<Option<(Option<serde_json::Value>, Option<serde_json::Value>)>> {
         let key = format!("{}:{}", INDEX_PREFIX, index_name);
-        if let Some(value) = self.db.get(key.as_bytes())
-            .map_err(sled_error)? {
+        if let Some(value) = self.db.get(key.as_bytes()).map_err(sled_error)? {
             let metadata: serde_json::Value = serde_json::from_slice(&value)?;
             let settings = metadata.get("settings").cloned();
             let mappings = metadata.get("mappings").cloned();
@@ -98,8 +99,7 @@ impl SledBackend {
     pub fn delete_index_metadata(&self, index_name: &str) -> Result<()> {
         debug!("Deleting index metadata for '{}'", index_name);
         let key = format!("{}:{}", INDEX_PREFIX, index_name);
-        self.db.remove(key.as_bytes())
-            .map_err(sled_error)?;
+        self.db.remove(key.as_bytes()).map_err(sled_error)?;
 
         // Also delete all documents for this index
         let doc_prefix = format!("{}:{}:", DOC_PREFIX, index_name);
@@ -108,14 +108,16 @@ impl SledBackend {
             let (key, _) = result.map_err(sled_error)?;
             to_remove.push(key);
         }
-        debug!("Deleting {} documents for index '{}'", to_remove.len(), index_name);
+        debug!(
+            "Deleting {} documents for index '{}'",
+            to_remove.len(),
+            index_name
+        );
         for key in to_remove {
-            self.db.remove(key)
-                .map_err(sled_error)?;
+            self.db.remove(key).map_err(sled_error)?;
         }
 
-        self.db.flush()
-            .map_err(sled_error)?;
+        self.db.flush().map_err(sled_error)?;
         debug!("Index '{}' deleted successfully from storage", index_name);
         Ok(())
     }
@@ -130,21 +132,26 @@ impl SledBackend {
         debug!("Storing document '{}' in index '{}'", doc_id, index_name);
         let key = format!("{}:{}:{}", DOC_PREFIX, index_name, doc_id);
         let value = serde_json::to_vec(document)?;
-        self.db.insert(key.as_bytes(), value)
-            .map_err(|e| {
-                warn!("Failed to store document '{}' in index '{}': {}", doc_id, index_name, e);
-                sled_error(e)
-            })?;
+        self.db.insert(key.as_bytes(), value).map_err(|e| {
+            warn!(
+                "Failed to store document '{}' in index '{}': {}",
+                doc_id, index_name, e
+            );
+            sled_error(e)
+        })?;
         // Don't flush on every document write for performance
         debug!("Document '{}' stored successfully", doc_id);
         Ok(())
     }
 
     /// Load a document
-    pub fn load_document(&self, index_name: &str, doc_id: &str) -> Result<Option<serde_json::Value>> {
+    pub fn load_document(
+        &self,
+        index_name: &str,
+        doc_id: &str,
+    ) -> Result<Option<serde_json::Value>> {
         let key = format!("{}:{}:{}", DOC_PREFIX, index_name, doc_id);
-        if let Some(value) = self.db.get(key.as_bytes())
-            .map_err(sled_error)? {
+        if let Some(value) = self.db.get(key.as_bytes()).map_err(sled_error)? {
             let doc: serde_json::Value = serde_json::from_slice(&value)?;
             Ok(Some(doc))
         } else {
@@ -155,8 +162,7 @@ impl SledBackend {
     /// Delete a document
     pub fn delete_document(&self, index_name: &str, doc_id: &str) -> Result<()> {
         let key = format!("{}:{}:{}", DOC_PREFIX, index_name, doc_id);
-        self.db.remove(key.as_bytes())
-            .map_err(sled_error)?;
+        self.db.remove(key.as_bytes()).map_err(sled_error)?;
         Ok(())
     }
 
@@ -180,8 +186,7 @@ impl SledBackend {
 
     /// Flush pending writes to disk
     pub fn flush(&self) -> Result<()> {
-        self.db.flush()
-            .map_err(sled_error)?;
+        self.db.flush().map_err(sled_error)?;
         Ok(())
     }
 }

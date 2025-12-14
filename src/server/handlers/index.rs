@@ -5,9 +5,9 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
-use crate::error::{GummySearchError, Result};
+use crate::error::{GbsError, Result};
 use crate::server::AppState;
 
 pub async fn create_index(
@@ -20,15 +20,15 @@ pub async fn create_index(
     let settings = body.as_ref().and_then(|b| b.get("settings").cloned());
     let mappings = body.as_ref().and_then(|b| b.get("mappings").cloned());
 
-    state.storage.create_index(&index, settings, mappings).await?;
+    state
+        .storage
+        .create_index(&index, settings, mappings)
+        .await?;
 
     Ok(StatusCode::OK)
 }
 
-pub async fn check_index(
-    State(state): State<AppState>,
-    Path(index): Path<String>,
-) -> StatusCode {
+pub async fn check_index(State(state): State<AppState>, Path(index): Path<String>) -> StatusCode {
     debug!("Checking existence of index: {}", index);
     match state.storage.index_exists(&index).await {
         Ok(true) => {
@@ -76,7 +76,8 @@ pub async fn update_mapping(
     info!("Updating mapping for index: {}", index);
 
     // Extract mappings from body
-    let new_mappings = body.get("properties")
+    let new_mappings = body
+        .get("properties")
         .or_else(|| body.get("mappings").and_then(|m| m.get("properties")))
         .cloned();
 
@@ -84,7 +85,7 @@ pub async fn update_mapping(
         state.storage.update_mapping(&index, mappings).await?;
         Ok(StatusCode::OK)
     } else {
-        Err(GummySearchError::InvalidRequest(
+        Err(GbsError::InvalidRequest(
             "Missing 'properties' or 'mappings.properties' in request body".to_string(),
         ))
     }

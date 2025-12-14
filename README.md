@@ -1,8 +1,8 @@
-# Gummy Search
+# Gummy Bear Search
 
 <div align="center">
 
-![Gummy Search Logo](images/gummy-search-400x500.jpg)
+![Gummy Bear Search Logo](images/logo-500.png)
 
 </div>
 
@@ -10,7 +10,7 @@ Elasticsearch-compatible search engine written in Rust.
 
 ## Overview
 
-Gummy Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.8.23 API. It provides a RESTful API compatible with Elasticsearch endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
+Gummy Bear Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.8.23 API. It provides a RESTful API compatible with Elasticsearch endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
 
 ## Features
 
@@ -59,7 +59,7 @@ cargo run
 
 # Or using Makefile
 make build-release
-./target/release/gummy-search
+./target/release/gbs
 ```
 
 The server will start on `http://localhost:9200` (Elasticsearch default port).
@@ -221,18 +221,18 @@ cargo run --release
 
 # Or using Makefile
 make build-release
-./target/release/gummy-search
+./target/release/gbs
 ```
 
 The server will start on `http://localhost:9200` by default.
 
 ### Configuration
 
-Gummy Search supports configuration via YAML file or environment variables.
+Gummy Bear Search supports configuration via YAML file or environment variables.
 
 #### Configuration File
 
-Create a `gummy-search.yaml` file in the project root (or copy `gummy-search.yaml.example`):
+Create a `gbs.yaml` file in the project root (or copy `gbs.yaml.example`):
 
 ```yaml
 server:
@@ -248,9 +248,9 @@ logging:
 
 **Config file search order:**
 1. Path specified in `GUMMY_CONFIG` environment variable
-2. `./gummy-search.yaml`
-3. `./config/gummy-search.yaml`
-4. `~/.config/gummy-search/gummy-search.yaml`
+2. `./gbs.yaml`
+3. `./config/gbs.yaml`
+4. `~/.config/gbs/gbs.yaml`
 
 #### Environment Variables
 
@@ -355,10 +355,10 @@ make docker-shell
 
 ```bash
 # Build the final image
-docker build -t gummy-search .
+docker build -t gbs .
 
 # Build the builder stage (for development)
-docker build --target builder -t gummy-search:builder .
+docker build --target builder -t gbs:builder .
 ```
 
 ### Running Tests in Docker
@@ -373,14 +373,14 @@ make docker-test
 **Option 2: Using Docker directly**
 ```bash
 # Build the builder stage first
-docker build --target builder -t gummy-search:builder .
+docker build --target builder -t gbs:builder .
 
 # Run tests with volume mount (recommended for development)
-docker run --rm -v $(pwd):/app -w /app gummy-search:builder \
+docker run --rm -v $(pwd):/app -w /app gbs:builder \
     cargo test
 
 # Run tests without volume mount (uses code from image)
-docker run --rm gummy-search:builder \
+docker run --rm gbs:builder \
     cargo test
 ```
 
@@ -398,18 +398,18 @@ cargo test -- --nocapture  # Show output
 
 ```bash
 # Run the container
-docker run --rm -p 9200:9200 gummy-search
+docker run --rm -p 9200:9200 gbs
 
 # Run in background
-docker run -d --name gummy-search -p 9200:9200 gummy-search
+docker run -d --name gbs -p 9200:9200 gbs
 
 # View logs
-docker logs gummy-search
+docker logs gbs
 ```
 
 ## API Compatibility
 
-Gummy Search implements a subset of Elasticsearch 6.8.23 API endpoints.
+Gummy Bear Search implements a subset of Elasticsearch 6.8.23 API endpoints.
 
 ## Documentation
 

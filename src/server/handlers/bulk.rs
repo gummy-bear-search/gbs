@@ -1,19 +1,19 @@
 //! Bulk operations handler
 
 use axum::{
-    extract::{Path, State, Query},
-    response::Json,
     body::Body,
+    extract::{Path, Query, State},
+    response::Json,
 };
 use std::collections::{HashMap, HashSet};
-use tracing::{info, debug, warn};
+use tracing::{debug, info, warn};
 
+use crate::bulk_ops::{
+    parse_bulk_ndjson, BulkAction, BulkError, BulkItemResponse, BulkOperationResult, BulkResponse,
+    ShardsInfo,
+};
 use crate::error::Result;
 use crate::server::AppState;
-use crate::bulk_ops::{
-    parse_bulk_ndjson, BulkAction, BulkResponse, BulkItemResponse,
-    BulkOperationResult, BulkError, ShardsInfo,
-};
 
 pub async fn bulk_operations(
     State(state): State<AppState>,
@@ -24,17 +24,17 @@ pub async fn bulk_operations(
     info!("Bulk operations for index: {:?}", index);
 
     // Convert body to String
-    let body_bytes = axum::body::to_bytes(body, usize::MAX).await
-        .map_err(|e| crate::error::GummySearchError::InvalidRequest(format!("Failed to read body: {}", e)))?;
-    let body_str = String::from_utf8(body_bytes.to_vec())
-        .map_err(|e| crate::error::GummySearchError::InvalidRequest(format!("Invalid UTF-8 in body: {}", e)))?;
+    let body_bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|e| {
+        crate::error::GbsError::InvalidRequest(format!("Failed to read body: {}", e))
+    })?;
+    let body_str = String::from_utf8(body_bytes.to_vec()).map_err(|e| {
+        crate::error::GbsError::InvalidRequest(format!("Invalid UTF-8 in body: {}", e))
+    })?;
 
     debug!("Bulk request body length: {} bytes", body_str.len());
 
     // Check refresh parameter
-    let refresh = params.get("refresh")
-        .map(|s| s.as_str())
-        .unwrap_or("false");
+    let refresh = params.get("refresh").map(|s| s.as_str()).unwrap_or("false");
 
     let start_time = std::time::Instant::now();
     let actions = parse_bulk_ndjson(&body_str, index.as_deref())?;
@@ -49,38 +49,36 @@ pub async fn bulk_operations(
             BulkAction::Index { index, id, .. } => {
                 affected_indices.insert(index.clone());
                 ("index", index.clone(), id.clone())
-            },
+            }
             BulkAction::Create { index, id, .. } => {
                 affected_indices.insert(index.clone());
                 ("create", index.clone(), id.clone())
-            },
+            }
             BulkAction::Update { index, id, .. } => {
                 affected_indices.insert(index.clone());
                 ("update", index.clone(), Some(id.clone()))
-            },
+            }
             BulkAction::Delete { index, id, .. } => {
                 affected_indices.insert(index.clone());
                 ("delete", index.clone(), Some(id.clone()))
-            },
+            }
         };
 
         let result = match state.storage.execute_bulk_action(action).await {
-            Ok((idx_name, doc_id, status, result)) => {
-                BulkOperationResult {
-                    index: idx_name,
-                    r#type: "_doc".to_string(),
-                    id: doc_id,
-                    version: Some(1),
-                    result,
-                    shards: Some(ShardsInfo {
-                        total: 1,
-                        successful: 1,
-                        failed: 0,
-                    }),
-                    status,
-                    error: None,
-                }
-            }
+            Ok((idx_name, doc_id, status, result)) => BulkOperationResult {
+                index: idx_name,
+                r#type: "_doc".to_string(),
+                id: doc_id,
+                version: Some(1),
+                result,
+                shards: Some(ShardsInfo {
+                    total: 1,
+                    successful: 1,
+                    failed: 0,
+                }),
+                status,
+                error: None,
+            },
             Err(e) => {
                 has_errors = true;
                 let doc_id = id.unwrap_or_else(|| "unknown".to_string());
@@ -120,7 +118,10 @@ pub async fn bulk_operations(
 
     // Handle refresh parameter
     if refresh == "true" || refresh == "wait_for" {
-        debug!("Refreshing {} indices after bulk operations", affected_indices.len());
+        debug!(
+            "Refreshing {} indices after bulk operations",
+            affected_indices.len()
+        );
         // Flush to persistent storage if available
         if let Err(e) = state.storage.flush().await {
             warn!("Failed to flush after bulk operations: {}", e);
@@ -128,7 +129,10 @@ pub async fn bulk_operations(
         // Refresh each affected index
         for index_name in &affected_indices {
             if let Err(e) = state.storage.refresh_index(index_name).await {
-                warn!("Failed to refresh index '{}' after bulk operations: {}", index_name, e);
+                warn!(
+                    "Failed to refresh index '{}' after bulk operations: {}",
+                    index_name, e
+                );
             }
         }
         debug!("Refresh completed for bulk operations");

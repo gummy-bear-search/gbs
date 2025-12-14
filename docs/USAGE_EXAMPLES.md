@@ -1,6 +1,6 @@
-# Gummy Search Usage Examples
+# Gummy Bear Search Usage Examples
 
-This document provides practical usage examples for common scenarios with Gummy Search.
+This document provides practical usage examples for common scenarios with Gummy Bear Search.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ cargo run
 
 # Using release build
 cargo build --release
-./target/release/gummy-search
+./target/release/gbs
 
 # With custom configuration
 GUMMY_PORT=9300 GUMMY_DATA_DIR=/custom/path cargo run

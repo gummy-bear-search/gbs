@@ -1,6 +1,6 @@
 //! Unit tests for bulk operations parsing
 
-use gummy_search::bulk_ops::{parse_bulk_ndjson, BulkAction};
+use gbs::bulk_ops::{parse_bulk_ndjson, BulkAction};
 
 #[test]
 fn test_parse_bulk_index_operations() {
@@ -14,7 +14,11 @@ fn test_parse_bulk_index_operations() {
     assert_eq!(actions.len(), 2);
 
     match &actions[0] {
-        BulkAction::Index { index, id, document } => {
+        BulkAction::Index {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, &Some("1".to_string()));
             assert_eq!(document["title"], "Document 1");
@@ -24,7 +28,11 @@ fn test_parse_bulk_index_operations() {
     }
 
     match &actions[1] {
-        BulkAction::Index { index, id, document } => {
+        BulkAction::Index {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, &Some("2".to_string()));
             assert_eq!(document["title"], "Document 2");
@@ -45,7 +53,11 @@ fn test_parse_bulk_create_operations() {
     assert_eq!(actions.len(), 2);
 
     match &actions[0] {
-        BulkAction::Create { index, id, document } => {
+        BulkAction::Create {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, &Some("1".to_string()));
             assert_eq!(document["title"], "Create Doc 1");
@@ -64,7 +76,11 @@ fn test_parse_bulk_update_operations() {
     assert_eq!(actions.len(), 1);
 
     match &actions[0] {
-        BulkAction::Update { index, id, document } => {
+        BulkAction::Update {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, "1");
             // Update should extract "doc" field
@@ -166,7 +182,11 @@ fn test_parse_bulk_auto_generated_id() {
     assert_eq!(actions.len(), 1);
 
     match &actions[0] {
-        BulkAction::Index { index, id, document } => {
+        BulkAction::Index {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, &None); // No ID specified, should be None
             assert_eq!(document["title"], "Auto ID Doc");
@@ -185,7 +205,11 @@ fn test_parse_bulk_update_without_doc_wrapper() {
     assert_eq!(actions.len(), 1);
 
     match &actions[0] {
-        BulkAction::Update { index, id, document } => {
+        BulkAction::Update {
+            index,
+            id,
+            document,
+        } => {
             assert_eq!(index, "test_index");
             assert_eq!(id, "1");
             // Should use the whole document if "doc" wrapper is not present
@@ -256,7 +280,10 @@ fn test_parse_bulk_unknown_action() {
 
     let result = parse_bulk_ndjson(bulk_body, None);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Unknown bulk action"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Unknown bulk action"));
 }
 
 #[test]
@@ -300,7 +327,11 @@ fn test_parse_bulk_large_batch() {
 
     for (i, action) in actions.iter().enumerate() {
         match action {
-            BulkAction::Index { index, id, document } => {
+            BulkAction::Index {
+                index,
+                id,
+                document,
+            } => {
                 assert_eq!(index, "test_index");
                 assert_eq!(id, &Some(format!("{}", i + 1)));
                 assert_eq!(document["title"], format!("Doc {}", i + 1));
@@ -416,7 +447,10 @@ invalid json document
 
     let result = parse_bulk_ndjson(bulk_body, None);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid document JSON"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid document JSON"));
 }
 
 #[test]

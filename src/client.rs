@@ -2,12 +2,12 @@
 // Currently unused as this is a server implementation
 
 #[allow(dead_code)]
-pub struct GummySearchClient {
+pub struct GbsClient {
     base_url: String,
 }
 
 #[allow(dead_code)]
-impl GummySearchClient {
+impl GbsClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into(),

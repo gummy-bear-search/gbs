@@ -1,22 +1,18 @@
-//! Route definitions for Gummy Search API
+//! Route definitions for Gummy Bear Search API
 //!
 //! Routes are organized by category into separate modules for better maintainability.
 
-mod web;
-mod cluster;
-mod index;
-mod document;
-mod search;
 mod bulk;
+mod cluster;
+mod document;
+mod index;
 mod refresh;
+mod search;
+mod web;
 mod websocket;
 
 use axum::Router;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-    services::ServeDir,
-};
+use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 
 use crate::server::AppState;
 

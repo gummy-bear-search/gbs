@@ -1,16 +1,16 @@
-//! Storage module for Gummy Search
+//! Storage module for Gummy Bear Search
 //!
 //! This module provides the main Storage struct and public API for managing
 //! indices, documents, and search operations.
 
 // Declare submodules
-mod index;
-mod search;
-mod index_ops;
 mod document_ops;
-mod stats;
+mod index;
+mod index_ops;
 mod persistence;
+mod search;
 mod search_impl;
+mod stats;
 mod storage;
 
 // Re-export Index

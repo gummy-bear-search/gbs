@@ -3,10 +3,10 @@
 //! These tests verify the HTTP API layer using axum-test to test handlers
 //! without requiring a running server.
 
-use axum_test::TestServer;
 use axum_test::http::StatusCode;
-use gummy_search::server::{create_router, AppState};
-use gummy_search::storage::Storage;
+use axum_test::TestServer;
+use gbs::server::{create_router, AppState};
+use gbs::storage::Storage;
 use serde_json::json;
 use std::sync::Arc;
 // NOTE: Bulk operation tests are commented out because axum-test doesn't support
@@ -64,7 +64,7 @@ async fn test_cluster_stats() {
 
     response.assert_status_ok();
     let body: serde_json::Value = response.json();
-    assert_eq!(body["cluster_name"], "gummy-search");
+    assert_eq!(body["cluster_name"], "gbs");
     assert_eq!(body["status"], "green");
     assert!(body["nodes"]["versions"].is_array());
     assert_eq!(body["nodes"]["versions"][0], "6.8.23");
@@ -87,10 +87,7 @@ async fn test_create_index() {
         }
     });
 
-    let response = server
-        .put("/test_index")
-        .json(&index_body)
-        .await;
+    let response = server.put("/test_index").json(&index_body).await;
 
     response.assert_status_ok();
 }
@@ -106,17 +103,11 @@ async fn test_create_index_already_exists() {
     });
 
     // Create index first time
-    let response1 = server
-        .put("/test_index")
-        .json(&index_body)
-        .await;
+    let response1 = server.put("/test_index").json(&index_body).await;
     response1.assert_status_ok();
 
     // Try to create again - should fail
-    let response2 = server
-        .put("/test_index")
-        .json(&index_body)
-        .await;
+    let response2 = server.put("/test_index").json(&index_body).await;
     response2.assert_status(StatusCode::BAD_REQUEST);
 }
 
@@ -221,10 +212,7 @@ async fn test_index_document() {
         "body": "This is a test"
     });
 
-    let response = server
-        .put("/test_index/_doc/1")
-        .json(&doc)
-        .await;
+    let response = server.put("/test_index/_doc/1").json(&doc).await;
 
     // PUT with new document returns 201 (Created) - no body, just status
     response.assert_status(StatusCode::CREATED);
@@ -286,10 +274,7 @@ async fn test_create_document_auto_id() {
         "body": "This has an auto-generated ID"
     });
 
-    let response = server
-        .post("/test_index/_doc")
-        .json(&doc)
-        .await;
+    let response = server.post("/test_index/_doc").json(&doc).await;
 
     response.assert_status_ok();
     let body: serde_json::Value = response.json();
@@ -333,10 +318,12 @@ async fn test_search_match_query() {
     server.put("/test_index").json(&index_body).await;
 
     // Index documents
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Programming", "body": "Learn Rust" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Tutorial", "body": "Learn Python" }))
         .await;
 
@@ -349,10 +336,7 @@ async fn test_search_match_query() {
         }
     });
 
-    let response = server
-        .post("/test_index/_search")
-        .json(&query)
-        .await;
+    let response = server.post("/test_index/_search").json(&query).await;
 
     response.assert_status_ok();
     let body: serde_json::Value = response.json();
@@ -372,10 +356,12 @@ async fn test_search_match_all() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Doc 1" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Doc 2" }))
         .await;
 
@@ -386,10 +372,7 @@ async fn test_search_match_all() {
         }
     });
 
-    let response = server
-        .post("/test_index/_search")
-        .json(&query)
-        .await;
+    let response = server.post("/test_index/_search").json(&query).await;
 
     response.assert_status_ok();
     let body: serde_json::Value = response.json();
@@ -408,7 +391,8 @@ async fn test_search_with_pagination() {
     server.put("/test_index").json(&index_body).await;
 
     for i in 1..=5 {
-        server.put(&format!("/test_index/_doc/{}", i))
+        server
+            .put(&format!("/test_index/_doc/{}", i))
             .json(&json!({ "title": format!("Doc {}", i) }))
             .await;
     }
@@ -420,10 +404,7 @@ async fn test_search_with_pagination() {
         "size": 2
     });
 
-    let response = server
-        .post("/test_index/_search")
-        .json(&query)
-        .await;
+    let response = server.post("/test_index/_search").json(&query).await;
 
     response.assert_status_ok();
     let body: serde_json::Value = response.json();
@@ -494,10 +475,7 @@ async fn test_update_mapping() {
         }
     });
 
-    let response = server
-        .put("/test_index/_mapping")
-        .json(&new_mapping)
-        .await;
+    let response = server.put("/test_index/_mapping").json(&new_mapping).await;
 
     response.assert_status_ok();
 }
@@ -1075,10 +1053,12 @@ async fn test_search_get_with_query_param() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Guide", "body": "Learn Rust" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Guide", "body": "Learn Python" }))
         .await;
 
@@ -1100,7 +1080,8 @@ async fn test_search_get_without_query_param() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Doc 1" }))
         .await;
 
@@ -1123,7 +1104,8 @@ async fn test_search_get_with_pagination() {
     server.put("/test_index").json(&index_body).await;
 
     for i in 1..=5 {
-        server.put(&format!("/test_index/_doc/{}", i))
+        server
+            .put(&format!("/test_index/_doc/{}", i))
             .json(&json!({ "title": format!("Doc {}", i) }))
             .await;
     }
@@ -1146,10 +1128,12 @@ async fn test_search_post_term_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "status": "active", "name": "Test" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "status": "inactive", "name": "Test" }))
         .await;
 
@@ -1180,13 +1164,16 @@ async fn test_search_post_range_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "age": 25 }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "age": 30 }))
         .await;
-    server.put("/test_index/_doc/3")
+    server
+        .put("/test_index/_doc/3")
         .json(&json!({ "age": 35 }))
         .await;
 
@@ -1219,13 +1206,16 @@ async fn test_search_post_wildcard_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "test" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "testing" }))
         .await;
-    server.put("/test_index/_doc/3")
+    server
+        .put("/test_index/_doc/3")
         .json(&json!({ "title": "best" }))
         .await;
 
@@ -1255,10 +1245,12 @@ async fn test_search_post_prefix_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "test" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "testing" }))
         .await;
 
@@ -1288,10 +1280,12 @@ async fn test_search_post_bool_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Guide", "status": "published" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Guide", "status": "draft" }))
         .await;
 
@@ -1327,10 +1321,12 @@ async fn test_search_post_multi_match_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Guide", "description": "Learn Rust" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Tutorial", "description": "Learn Python" }))
         .await;
 
@@ -1362,10 +1358,12 @@ async fn test_search_post_match_phrase_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Programming Guide" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Tutorial" }))
         .await;
 
@@ -1396,13 +1394,16 @@ async fn test_search_post_with_sorting() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "name": "Alice", "age": 30 }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "name": "Bob", "age": 25 }))
         .await;
-    server.put("/test_index/_doc/3")
+    server
+        .put("/test_index/_doc/3")
         .json(&json!({ "name": "Charlie", "age": 35 }))
         .await;
 
@@ -1435,7 +1436,8 @@ async fn test_search_post_with_source_filtering() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Test", "body": "Content", "meta": "data" }))
         .await;
 
@@ -1467,7 +1469,8 @@ async fn test_search_post_with_highlighting() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Programming Guide" }))
         .await;
 
@@ -1528,10 +1531,12 @@ async fn test_search_multi_index() {
     server.put("/index2").json(&index_body).await;
 
     // Add documents to each
-    server.put("/index1/_doc/1")
+    server
+        .put("/index1/_doc/1")
         .json(&json!({ "title": "Index 1 Doc" }))
         .await;
-    server.put("/index2/_doc/1")
+    server
+        .put("/index2/_doc/1")
         .json(&json!({ "title": "Index 2 Doc" }))
         .await;
 
@@ -1561,10 +1566,12 @@ async fn test_search_multi_index_with_wildcard() {
     server.put("/other_index").json(&index_body).await;
 
     // Add documents
-    server.put("/test_index_1/_doc/1")
+    server
+        .put("/test_index_1/_doc/1")
         .json(&json!({ "title": "Test 1" }))
         .await;
-    server.put("/test_index_2/_doc/1")
+    server
+        .put("/test_index_2/_doc/1")
         .json(&json!({ "title": "Test 2" }))
         .await;
 
@@ -1593,10 +1600,12 @@ async fn test_search_multi_index_default_all() {
     server.put("/index2").json(&index_body).await;
 
     // Add documents
-    server.put("/index1/_doc/1")
+    server
+        .put("/index1/_doc/1")
         .json(&json!({ "title": "Doc 1" }))
         .await;
-    server.put("/index2/_doc/1")
+    server
+        .put("/index2/_doc/1")
         .json(&json!({ "title": "Doc 2" }))
         .await;
 
@@ -1622,13 +1631,16 @@ async fn test_search_post_terms_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "status": "active" }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "status": "pending" }))
         .await;
-    server.put("/test_index/_doc/3")
+    server
+        .put("/test_index/_doc/3")
         .json(&json!({ "status": "inactive" }))
         .await;
 
@@ -1658,7 +1670,8 @@ async fn test_search_post_without_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Doc 1" }))
         .await;
 
@@ -1682,13 +1695,16 @@ async fn test_search_post_complex_bool_query() {
     });
     server.put("/test_index").json(&index_body).await;
 
-    server.put("/test_index/_doc/1")
+    server
+        .put("/test_index/_doc/1")
         .json(&json!({ "title": "Rust Guide", "status": "published", "tags": ["programming"] }))
         .await;
-    server.put("/test_index/_doc/2")
+    server
+        .put("/test_index/_doc/2")
         .json(&json!({ "title": "Python Guide", "status": "draft", "tags": ["programming"] }))
         .await;
-    server.put("/test_index/_doc/3")
+    server
+        .put("/test_index/_doc/3")
         .json(&json!({ "title": "Rust Tutorial", "status": "published", "tags": ["tutorial"] }))
         .await;
 
@@ -1829,7 +1845,10 @@ async fn test_update_mapping_with_nested_properties() {
         }
     });
 
-    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    let response = server
+        .put("/test_index/_mapping")
+        .json(&mapping_update)
+        .await;
     response.assert_status_ok();
 
     // Verify nested mapping was added
@@ -1859,7 +1878,10 @@ async fn test_update_mapping_with_mappings_wrapper() {
         }
     });
 
-    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    let response = server
+        .put("/test_index/_mapping")
+        .json(&mapping_update)
+        .await;
     response.assert_status_ok();
 
     // Verify mapping was added
@@ -1884,7 +1906,10 @@ async fn test_update_mapping_missing_properties() {
         "invalid": "structure"
     });
 
-    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    let response = server
+        .put("/test_index/_mapping")
+        .json(&mapping_update)
+        .await;
     response.assert_status(StatusCode::BAD_REQUEST);
 }
 
@@ -1920,7 +1945,10 @@ async fn test_update_settings_nested() {
         }
     });
 
-    let response = server.put("/test_index/_settings").json(&settings_update).await;
+    let response = server
+        .put("/test_index/_settings")
+        .json(&settings_update)
+        .await;
     response.assert_status_ok();
 
     // Verify settings were merged
@@ -1950,7 +1978,10 @@ async fn test_update_settings_replace() {
         "refresh_interval": "2s"
     });
 
-    let response = server.put("/test_index/_settings").json(&settings_update).await;
+    let response = server
+        .put("/test_index/_settings")
+        .json(&settings_update)
+        .await;
     response.assert_status_ok();
 
     // Verify settings were updated
@@ -1973,7 +2004,10 @@ async fn test_update_mapping_nonexistent_index() {
         }
     });
 
-    let response = server.put("/nonexistent/_mapping").json(&mapping_update).await;
+    let response = server
+        .put("/nonexistent/_mapping")
+        .json(&mapping_update)
+        .await;
     response.assert_status(StatusCode::NOT_FOUND);
 }
 
@@ -1986,7 +2020,10 @@ async fn test_update_settings_nonexistent_index() {
         "number_of_replicas": 1
     });
 
-    let response = server.put("/nonexistent/_settings").json(&settings_update).await;
+    let response = server
+        .put("/nonexistent/_settings")
+        .json(&settings_update)
+        .await;
     response.assert_status(StatusCode::NOT_FOUND);
 }
 
@@ -2130,7 +2167,10 @@ async fn test_update_mapping_merge_multiple_fields() {
         }
     });
 
-    let response = server.put("/test_index/_mapping").json(&mapping_update).await;
+    let response = server
+        .put("/test_index/_mapping")
+        .json(&mapping_update)
+        .await;
     response.assert_status_ok();
 
     // Verify all fields are present
@@ -2155,7 +2195,7 @@ async fn test_root_handler() {
     let response = server.get("/").await;
     response.assert_status_ok();
     let body = response.text();
-    assert!(body.contains("Gummy Search"));
+    assert!(body.contains("Gummy Bear Search"));
 }
 
 #[tokio::test]
@@ -2167,5 +2207,9 @@ async fn test_web_index_handler() {
     response.assert_status_ok();
     let body = response.text();
     // Should return HTML content
-    assert!(body.contains("<!DOCTYPE html>") || body.contains("<html") || body.contains("Gummy Search"));
+    assert!(
+        body.contains("<!DOCTYPE html>")
+            || body.contains("<html")
+            || body.contains("Gummy Bear Search")
+    );
 }

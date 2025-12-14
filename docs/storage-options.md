@@ -1,4 +1,4 @@
-# Persistent Storage Options for Gummy Search
+# Persistent Storage Options for Gummy Bear Search
 
 ## Current State
 - **Current Implementation**: In-memory `HashMap<String, Index>` with `Arc<RwLock<>>`

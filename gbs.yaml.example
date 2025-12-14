@@ -1,5 +1,5 @@
-# Gummy Search Configuration File
-# Copy this file to gummy-search.yaml and customize as needed
+# Gummy Bear Search Configuration File
+# Copy this file to gbs.yaml and customize as needed
 
 # Server configuration
 server:

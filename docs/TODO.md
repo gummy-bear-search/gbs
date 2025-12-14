@@ -1,6 +1,6 @@
-# TODO - Gummy Search Development
+# TODO - Gummy Bear Search Development
 
-This document tracks the development progress and tasks for the Gummy Search project.
+This document tracks the development progress and tasks for the Gummy Bear Search project.
 
 ## Current Status
 

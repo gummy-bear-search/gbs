@@ -519,7 +519,7 @@ Recommended libraries for HTTP and JSON:
 ### Project Structure
 
 ```
-gummy-search/
+gbs/
 ├── src/
 │   ├── client.rs          # Main client
 │   ├── index.rs           # Index operations
@@ -535,12 +535,12 @@ gummy-search/
 ### Example API Client
 
 ```rust
-pub struct GummySearchClient {
+pub struct GbsClient {
     base_url: String,
     client: reqwest::Client,
 }
 
-impl GummySearchClient {
+impl GbsClient {
     pub async fn create_index(&self, index: &str, settings: IndexSettings) -> Result<()> {
         // PUT /{index}
     }

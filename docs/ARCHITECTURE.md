@@ -1,10 +1,10 @@
-# Gummy Search Architecture
+# Gummy Bear Search Architecture
 
-This document describes the architecture and design of Gummy Search.
+This document describes the architecture and design of Gummy Bear Search.
 
 ## Overview
 
-Gummy Search is an Elasticsearch-compatible search engine written in Rust. It provides a RESTful API that mimics Elasticsearch 6.8.23 endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
+Gummy Bear Search is an Elasticsearch-compatible search engine written in Rust. It provides a RESTful API that mimics Elasticsearch 6.8.23 endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
 
 ## System Architecture
 
@@ -102,7 +102,7 @@ Gummy Search is an Elasticsearch-compatible search engine written in Rust. It pr
 
 **Config Sources (priority order):**
 1. Environment variables (highest)
-2. Config file (`gummy-search.yaml`)
+2. Config file (`gbs.yaml`)
 3. Default values (lowest)
 
 ### 5. Error Handling (`src/error.rs`)
@@ -239,7 +239,7 @@ Current implementation uses simple scoring:
 
 ## Configuration
 
-### Config File (`gummy-search.yaml`)
+### Config File (`gbs.yaml`)
 
 ```yaml
 server:
@@ -266,7 +266,7 @@ logging:
 
 ### Error Types
 
-All errors are converted to `GummySearchError`:
+All errors are converted to `GbsError`:
 - HTTP status codes mapped to error types
 - Detailed error messages
 - Proper error propagation
@@ -342,14 +342,14 @@ cargo build --release
 ### Run
 
 ```bash
-./target/release/gummy-search
+./target/release/gbs
 ```
 
 ### Docker
 
 ```bash
-docker build -t gummy-search .
-docker run -p 9200:9200 gummy-search
+docker build -t gbs .
+docker run -p 9200:9200 gbs
 ```
 
 ## Limitations

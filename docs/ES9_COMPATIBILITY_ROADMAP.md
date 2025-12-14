@@ -387,13 +387,13 @@ Before targeting ES 9.x, we should:
 
 ### Current Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "6.8.23"  # Current default
 ```
 
 ### ES 9.x Configuration
 ```yaml
-# gummy-search.yaml
+# gbs.yaml
 es_version: "9.2.0"  # ES 9.x default
 security:
   enabled: true  # Required (from ES 8.x)

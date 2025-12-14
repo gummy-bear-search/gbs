@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
-use crate::error::{GummySearchError, Result};
+use crate::error::{GbsError, Result};
 use crate::storage::Index;
 use crate::storage_backend::SledBackend;
 
@@ -13,9 +13,9 @@ use crate::storage_backend::SledBackend;
 pub async fn flush(backend: &Option<Arc<SledBackend>>) -> Result<()> {
     if let Some(backend) = backend {
         let backend_clone = backend.clone();
-        tokio::task::spawn_blocking(move || {
-            backend_clone.flush()
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        tokio::task::spawn_blocking(move || backend_clone.flush())
+            .await
+            .map_err(GbsError::TaskJoin)??;
     }
     Ok(())
 }
@@ -65,15 +65,20 @@ pub async fn load_from_backend(
                     }
                 }
 
-                Ok::<_, GummySearchError>(loaded)
+                Ok::<_, GbsError>(loaded)
             }
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
 
         let mut indices_guard = indices.write().await;
         let count = indices_data.len();
         *indices_guard = indices_data;
         let elapsed = start.elapsed();
-        info!("Loaded {} indices from persistent storage in {:?}", count, elapsed);
+        info!(
+            "Loaded {} indices from persistent storage in {:?}",
+            count, elapsed
+        );
     } else {
         debug!("No persistent backend configured, skipping load");
     }

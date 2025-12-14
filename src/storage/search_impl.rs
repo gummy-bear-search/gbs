@@ -3,13 +3,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
-use crate::error::{GummySearchError, Result};
-use crate::storage::Index;
+use crate::error::{GbsError, Result};
 use crate::storage::search::{
-    score_document, highlight_document, filter_source, compare_documents
+    compare_documents, filter_source, highlight_document, score_document,
 };
+use crate::storage::Index;
 
 /// Search documents in an index
 ///
@@ -32,18 +32,23 @@ pub async fn search(
     source_filter: Option<&serde_json::Value>,
     highlight: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value> {
-    debug!("Searching index '{}' with query: {}", index_name, serde_json::to_string(query).unwrap_or_default());
+    debug!(
+        "Searching index '{}' with query: {}",
+        index_name,
+        serde_json::to_string(query).unwrap_or_default()
+    );
     let indices_guard = indices.read().await;
-    let index = indices_guard
-        .get(index_name)
-        .ok_or_else(|| {
-            error!("Index '{}' not found for search", index_name);
-            GummySearchError::IndexNotFound(index_name.to_string())
-        })?;
+    let index = indices_guard.get(index_name).ok_or_else(|| {
+        error!("Index '{}' not found for search", index_name);
+        GbsError::IndexNotFound(index_name.to_string())
+    })?;
 
     let start_time = std::time::Instant::now();
     let total_docs = index.documents.len();
-    debug!("Searching {} documents in index '{}'", total_docs, index_name);
+    debug!(
+        "Searching {} documents in index '{}'",
+        total_docs, index_name
+    );
 
     // Collect all documents with their IDs
     let mut scored_docs: Vec<(String, serde_json::Value, f64)> = Vec::new();
@@ -56,23 +61,17 @@ pub async fn search(
     }
 
     // Sort by score (descending) first, then apply custom sorting if specified
-    scored_docs.sort_by(|a, b| {
-        b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    scored_docs.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
     // Apply custom sorting if specified
     if let Some(sort_spec) = sort {
         if let Some(sort_array) = sort_spec.as_array() {
             for sort_item in sort_array.iter().rev() {
-                scored_docs.sort_by(|a, b| {
-                    compare_documents(&a.1, &b.1, sort_item)
-                });
+                scored_docs.sort_by(|a, b| compare_documents(&a.1, &b.1, sort_item));
             }
         } else if sort_spec.is_object() {
             // Single sort field
-            scored_docs.sort_by(|a, b| {
-                compare_documents(&a.1, &b.1, sort_spec)
-            });
+            scored_docs.sort_by(|a, b| compare_documents(&a.1, &b.1, sort_spec));
         }
     }
 
@@ -108,7 +107,9 @@ pub async fn search(
             // Add highlighting if configured
             if let Some(highlight_config) = highlight {
                 if let Some(highlight_result) = highlight_document(&doc, query, highlight_config) {
-                    hit.as_object_mut().unwrap().insert("highlight".to_string(), highlight_result);
+                    hit.as_object_mut()
+                        .unwrap()
+                        .insert("highlight".to_string(), highlight_result);
                 }
             }
 
@@ -127,7 +128,11 @@ pub async fn search(
         from.unwrap_or(0),
         size.unwrap_or(10)
     );
-    debug!("Search returned {} hits out of {} total documents", hits.len(), total_docs);
+    debug!(
+        "Search returned {} hits out of {} total documents",
+        hits.len(),
+        total_docs
+    );
 
     Ok(serde_json::json!({
         "took": took,

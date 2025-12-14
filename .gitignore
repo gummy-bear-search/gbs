@@ -15,8 +15,8 @@ Cargo.lock
 Thumbs.db
 
 # Config files (keep .example files)
-gummy-search.yaml
-config/gummy-search.yaml
+gbs.yaml
+config/gbs.yaml
 
 # Data directory
 /data

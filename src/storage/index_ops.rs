@@ -1,12 +1,12 @@
 //! Index management operations
 
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use regex::Regex;
-use tracing::{info, debug, warn, error};
+use tracing::{debug, error, info, warn};
 
-use crate::error::{GummySearchError, Result};
+use crate::error::{GbsError, Result};
 use crate::storage::Index;
 use crate::storage_backend::SledBackend;
 
@@ -23,9 +23,10 @@ pub async fn create_index(
 
     if indices_guard.contains_key(name) {
         warn!("Attempted to create index '{}' that already exists", name);
-        return Err(GummySearchError::InvalidRequest(
-            format!("Index {} already exists", name),
-        ));
+        return Err(GbsError::InvalidRequest(format!(
+            "Index {} already exists",
+            name
+        )));
     }
 
     // Persist to backend if available
@@ -37,8 +38,14 @@ pub async fn create_index(
         let mappings_clone = mappings.clone();
 
         tokio::task::spawn_blocking(move || {
-            backend_clone.store_index_metadata(&name_str, settings_clone.as_ref(), mappings_clone.as_ref())
-        }).await.map_err(GummySearchError::TaskJoin)??;
+            backend_clone.store_index_metadata(
+                &name_str,
+                settings_clone.as_ref(),
+                mappings_clone.as_ref(),
+            )
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
         debug!("Index '{}' persisted successfully", name);
     }
 
@@ -59,9 +66,7 @@ pub async fn index_exists(
 }
 
 /// List all indices
-pub async fn list_indices(
-    indices: &Arc<RwLock<HashMap<String, Index>>>,
-) -> Vec<String> {
+pub async fn list_indices(indices: &Arc<RwLock<HashMap<String, Index>>>) -> Vec<String> {
     let indices_guard = indices.read().await;
     indices_guard.keys().cloned().collect()
 }
@@ -102,11 +107,10 @@ pub async fn match_indices(
     let full_pattern = format!("^{}$", regex_pattern);
 
     match Regex::new(&full_pattern) {
-        Ok(re) => {
-            all_indices.into_iter()
-                .filter(|name| re.is_match(name))
-                .collect()
-        }
+        Ok(re) => all_indices
+            .into_iter()
+            .filter(|name| re.is_match(name))
+            .collect(),
         Err(_) => {
             // Invalid pattern, return empty
             Vec::new()
@@ -119,15 +123,14 @@ pub async fn get_indices_stats(
     indices: &Arc<RwLock<HashMap<String, Index>>>,
 ) -> Vec<(String, usize)> {
     let indices_guard = indices.read().await;
-    indices_guard.iter()
+    indices_guard
+        .iter()
         .map(|(name, index)| (name.clone(), index.documents.len()))
         .collect()
 }
 
 /// Get aliases for all indices
-pub async fn get_aliases(
-    indices: &Arc<RwLock<HashMap<String, Index>>>,
-) -> serde_json::Value {
+pub async fn get_aliases(indices: &Arc<RwLock<HashMap<String, Index>>>) -> serde_json::Value {
     let indices_guard = indices.read().await;
     let mut result = serde_json::Map::new();
 
@@ -156,7 +159,7 @@ pub async fn get_index(
     let indices_guard = indices.read().await;
     let index = indices_guard
         .get(name)
-        .ok_or_else(|| GummySearchError::IndexNotFound(name.to_string()))?;
+        .ok_or_else(|| GbsError::IndexNotFound(name.to_string()))?;
 
     Ok(serde_json::json!({
         name: {
@@ -181,22 +184,26 @@ pub async fn delete_index(
         let backend_clone = backend.clone();
         let name_str = name.to_string();
 
-        tokio::task::spawn_blocking(move || {
-            backend_clone.delete_index_metadata(&name_str)
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        tokio::task::spawn_blocking(move || backend_clone.delete_index_metadata(&name_str))
+            .await
+            .map_err(GbsError::TaskJoin)??;
         debug!("Index '{}' deleted from storage backend", name);
     }
 
     let mut indices_guard = indices.write().await;
-    let doc_count = indices_guard.get(name).map(|idx| idx.documents.len()).unwrap_or(0);
-    indices_guard
-        .remove(name)
-        .ok_or_else(|| {
-            warn!("Attempted to delete non-existent index: {}", name);
-            GummySearchError::IndexNotFound(name.to_string())
-        })?;
+    let doc_count = indices_guard
+        .get(name)
+        .map(|idx| idx.documents.len())
+        .unwrap_or(0);
+    indices_guard.remove(name).ok_or_else(|| {
+        warn!("Attempted to delete non-existent index: {}", name);
+        GbsError::IndexNotFound(name.to_string())
+    })?;
 
-    info!("Index '{}' deleted successfully (had {} documents)", name, doc_count);
+    info!(
+        "Index '{}' deleted successfully (had {} documents)",
+        name, doc_count
+    );
     Ok(())
 }
 
@@ -219,13 +226,15 @@ pub async fn delete_all_indices(
         let indices_list = tokio::task::spawn_blocking({
             let backend = backend.clone();
             move || backend.list_indices()
-        }).await.map_err(GummySearchError::TaskJoin)??;
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
 
         for index_name in indices_list {
             let backend_clone = backend_clone.clone();
-            tokio::task::spawn_blocking(move || {
-                backend_clone.delete_index_metadata(&index_name)
-            }).await.map_err(GummySearchError::TaskJoin)??;
+            tokio::task::spawn_blocking(move || backend_clone.delete_index_metadata(&index_name))
+                .await
+                .map_err(GbsError::TaskJoin)??;
         }
         debug!("All indices deleted from storage backend");
     }
@@ -244,19 +253,22 @@ pub async fn update_mapping(
     new_mappings: serde_json::Value,
 ) -> Result<()> {
     info!("Updating mapping for index: {}", index_name);
-    debug!("New mapping: {}", serde_json::to_string(&new_mappings).unwrap_or_default());
+    debug!(
+        "New mapping: {}",
+        serde_json::to_string(&new_mappings).unwrap_or_default()
+    );
 
     let mut indices_guard = indices.write().await;
-    let index = indices_guard
-        .get_mut(index_name)
-        .ok_or_else(|| {
-            error!("Index '{}' not found when updating mapping", index_name);
-            GummySearchError::IndexNotFound(index_name.to_string())
-        })?;
+    let index = indices_guard.get_mut(index_name).ok_or_else(|| {
+        error!("Index '{}' not found when updating mapping", index_name);
+        GbsError::IndexNotFound(index_name.to_string())
+    })?;
 
     // Update mappings - merge with existing if present
     if let Some(existing_mappings) = &mut index.mappings {
-        if let (Some(existing_obj), Some(new_obj)) = (existing_mappings.as_object_mut(), new_mappings.as_object()) {
+        if let (Some(existing_obj), Some(new_obj)) =
+            (existing_mappings.as_object_mut(), new_mappings.as_object())
+        {
             // Merge properties
             if let Some(existing_props) = existing_obj.get_mut("properties") {
                 if let Some(existing_props_obj) = existing_props.as_object_mut() {
@@ -266,7 +278,10 @@ pub async fn update_mapping(
                 }
             } else {
                 // No existing properties, set new ones
-                existing_obj.insert("properties".to_string(), serde_json::Value::Object(new_obj.clone()));
+                existing_obj.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(new_obj.clone()),
+                );
             }
         } else {
             // Replace entire mappings
@@ -281,15 +296,24 @@ pub async fn update_mapping(
 
     // Persist updated mappings to backend
     if let Some(backend) = backend {
-        debug!("Persisting updated mapping for index '{}' to storage backend", index_name);
+        debug!(
+            "Persisting updated mapping for index '{}' to storage backend",
+            index_name
+        );
         let backend_clone = backend.clone();
         let index_name_str = index_name.to_string();
         let final_mappings = index.mappings.clone();
         let settings = index.settings.clone();
 
         tokio::task::spawn_blocking(move || {
-            backend_clone.store_index_metadata(&index_name_str, settings.as_ref(), final_mappings.as_ref())
-        }).await.map_err(GummySearchError::TaskJoin)??;
+            backend_clone.store_index_metadata(
+                &index_name_str,
+                settings.as_ref(),
+                final_mappings.as_ref(),
+            )
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
         debug!("Mapping for index '{}' persisted successfully", index_name);
     }
 
@@ -305,19 +329,22 @@ pub async fn update_settings(
     new_settings: serde_json::Value,
 ) -> Result<()> {
     info!("Updating settings for index: {}", index_name);
-    debug!("New settings: {}", serde_json::to_string(&new_settings).unwrap_or_default());
+    debug!(
+        "New settings: {}",
+        serde_json::to_string(&new_settings).unwrap_or_default()
+    );
 
     let mut indices_guard = indices.write().await;
-    let index = indices_guard
-        .get_mut(index_name)
-        .ok_or_else(|| {
-            error!("Index '{}' not found when updating settings", index_name);
-            GummySearchError::IndexNotFound(index_name.to_string())
-        })?;
+    let index = indices_guard.get_mut(index_name).ok_or_else(|| {
+        error!("Index '{}' not found when updating settings", index_name);
+        GbsError::IndexNotFound(index_name.to_string())
+    })?;
 
     // Update settings - merge with existing if present
     if let Some(existing_settings) = &mut index.settings {
-        if let (Some(existing_obj), Some(new_obj)) = (existing_settings.as_object_mut(), new_settings.as_object()) {
+        if let (Some(existing_obj), Some(new_obj)) =
+            (existing_settings.as_object_mut(), new_settings.as_object())
+        {
             // Merge settings
             for (key, value) in new_obj {
                 existing_obj.insert(key.clone(), value.clone());
@@ -333,15 +360,24 @@ pub async fn update_settings(
 
     // Persist updated settings to backend
     if let Some(backend) = backend {
-        debug!("Persisting updated settings for index '{}' to storage backend", index_name);
+        debug!(
+            "Persisting updated settings for index '{}' to storage backend",
+            index_name
+        );
         let backend_clone = backend.clone();
         let index_name_str = index_name.to_string();
         let final_settings = index.settings.clone();
         let mappings = index.mappings.clone();
 
         tokio::task::spawn_blocking(move || {
-            backend_clone.store_index_metadata(&index_name_str, final_settings.as_ref(), mappings.as_ref())
-        }).await.map_err(GummySearchError::TaskJoin)??;
+            backend_clone.store_index_metadata(
+                &index_name_str,
+                final_settings.as_ref(),
+                mappings.as_ref(),
+            )
+        })
+        .await
+        .map_err(GbsError::TaskJoin)??;
         debug!("Settings for index '{}' persisted successfully", index_name);
     }
 

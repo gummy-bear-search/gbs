@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use gummy_search::storage::Storage;
+    use gbs::storage::Storage;
     use serde_json;
     use tempfile::TempDir;
 
@@ -18,13 +18,23 @@ mod tests {
             storage.load_from_backend().await.unwrap();
 
             // Create index
-            storage.create_index("test_index", None, None).await.unwrap();
+            storage
+                .create_index("test_index", None, None)
+                .await
+                .unwrap();
 
             // Add document
-            storage.index_document("test_index", "1", serde_json::json!({
-                "title": "Test Document",
-                "content": "This should persist"
-            })).await.unwrap();
+            storage
+                .index_document(
+                    "test_index",
+                    "1",
+                    serde_json::json!({
+                        "title": "Test Document",
+                        "content": "This should persist"
+                    }),
+                )
+                .await
+                .unwrap();
 
             // Flush to ensure data is written
             storage.flush().await.unwrap();
@@ -41,7 +51,10 @@ mod tests {
             // Verify document exists
             let doc = storage.get_document("test_index", "1").await.unwrap();
             let source = doc.get("_source").unwrap();
-            assert_eq!(source.get("title").unwrap().as_str().unwrap(), "Test Document");
+            assert_eq!(
+                source.get("title").unwrap().as_str().unwrap(),
+                "Test Document"
+            );
         }
     }
 
@@ -57,8 +70,14 @@ mod tests {
             storage.create_index("index1", None, None).await.unwrap();
             storage.create_index("index2", None, None).await.unwrap();
 
-            storage.index_document("index1", "1", serde_json::json!({"data": "one"})).await.unwrap();
-            storage.index_document("index2", "2", serde_json::json!({"data": "two"})).await.unwrap();
+            storage
+                .index_document("index1", "1", serde_json::json!({"data": "one"}))
+                .await
+                .unwrap();
+            storage
+                .index_document("index2", "2", serde_json::json!({"data": "two"}))
+                .await
+                .unwrap();
 
             // Flush to ensure data is written
             storage.flush().await.unwrap();

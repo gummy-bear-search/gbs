@@ -1,4 +1,4 @@
-//! Main Storage struct for Gummy Search
+//! Main Storage struct for Gummy Bear Search
 //!
 //! Manages indices, documents, and provides search functionality.
 //! Supports both in-memory and persistent (Sled) storage backends.
@@ -9,19 +9,19 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::error::Result;
 use crate::bulk_ops::BulkAction;
-use crate::storage_backend::SledBackend;
+use crate::error::Result;
 use crate::storage::Index;
+use crate::storage_backend::SledBackend;
 
 // Import operations from submodules
-use crate::storage::index_ops::*;
 use crate::storage::document_ops::*;
-use crate::storage::stats::*;
+use crate::storage::index_ops::*;
 use crate::storage::persistence::*;
 use crate::storage::search_impl::*;
+use crate::storage::stats::*;
 
-/// Main Storage struct for Gummy Search
+/// Main Storage struct for Gummy Bear Search
 ///
 /// Manages indices, documents, and provides search functionality.
 /// Supports both in-memory and persistent (Sled) storage backends.
@@ -151,23 +151,18 @@ impl Storage {
         create_document(&self.indices, &self.backend, index_name, document).await
     }
 
-    pub async fn get_document(
-        &self,
-        index_name: &str,
-        id: &str,
-    ) -> Result<serde_json::Value> {
+    pub async fn get_document(&self, index_name: &str, id: &str) -> Result<serde_json::Value> {
         get_document(&self.indices, index_name, id).await
     }
 
-    pub async fn delete_document(
-        &self,
-        index_name: &str,
-        id: &str,
-    ) -> Result<()> {
+    pub async fn delete_document(&self, index_name: &str, id: &str) -> Result<()> {
         delete_document(&self.indices, &self.backend, index_name, id).await
     }
 
-    pub async fn execute_bulk_action(&self, action: BulkAction) -> Result<(String, String, u16, Option<String>)> {
+    pub async fn execute_bulk_action(
+        &self,
+        action: BulkAction,
+    ) -> Result<(String, String, u16, Option<String>)> {
         execute_bulk_action(&self.indices, &self.backend, action).await
     }
 
@@ -192,6 +187,16 @@ impl Storage {
         source_filter: Option<&serde_json::Value>,
         highlight: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
-        search(&self.indices, index_name, query, from, size, sort, source_filter, highlight).await
+        search(
+            &self.indices,
+            index_name,
+            query,
+            from,
+            size,
+            sort,
+            source_filter,
+            highlight,
+        )
+        .await
     }
 }

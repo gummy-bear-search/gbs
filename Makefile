@@ -5,7 +5,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build          - Build the project (debug)"
 	@echo "  build-release  - Build the project (release)"
-	@echo "  run            - Run the Gummy Search server"
+	@echo "  run            - Run the Gummy Bear Search server"
 	@echo "  test           - Run all tests"
 	@echo "  lint           - Run clippy linter"
 	@echo "  fmt            - Format code with rustfmt"
@@ -67,18 +67,18 @@ all: fmt-check lint test
 
 # Docker targets
 docker-build:
-	docker build -t gummy-search .
+	docker build -t gbs .
 
 docker-build-builder:
-	docker build --target builder -t gummy-search:builder .
+	docker build --target builder -t gbs:builder .
 
 docker-test: docker-build-builder
-	docker run --rm -v $$(pwd):/app -w /app gummy-search:builder \
+	docker run --rm -v $$(pwd):/app -w /app gbs:builder \
 		cargo test
 
 docker-run:
-	docker run --rm gummy-search
+	docker run --rm gbs
 
 docker-shell: docker-build-builder
-	docker run --rm -it -v $$(pwd):/app -w /app gummy-search:builder \
+	docker run --rm -it -v $$(pwd):/app -w /app gbs:builder \
 		/bin/sh
