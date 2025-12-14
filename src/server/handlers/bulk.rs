@@ -3,6 +3,7 @@
 use axum::{
     extract::{Path, State, Query},
     response::Json,
+    body::Body,
 };
 use std::collections::{HashMap, HashSet};
 use tracing::{info, debug, warn};
@@ -18,10 +19,17 @@ pub async fn bulk_operations(
     State(state): State<AppState>,
     Path(index): Path<Option<String>>,
     Query(params): Query<HashMap<String, String>>,
-    body: String,
+    body: Body,
 ) -> Result<Json<BulkResponse>> {
     info!("Bulk operations for index: {:?}", index);
-    debug!("Bulk request body length: {} bytes", body.len());
+
+    // Convert body to String
+    let body_bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|e| crate::error::GummySearchError::InvalidRequest(format!("Failed to read body: {}", e)))?;
+    let body_str = String::from_utf8(body_bytes.to_vec())
+        .map_err(|e| crate::error::GummySearchError::InvalidRequest(format!("Invalid UTF-8 in body: {}", e)))?;
+
+    debug!("Bulk request body length: {} bytes", body_str.len());
 
     // Check refresh parameter
     let refresh = params.get("refresh")
@@ -29,7 +37,7 @@ pub async fn bulk_operations(
         .unwrap_or("false");
 
     let start_time = std::time::Instant::now();
-    let actions = parse_bulk_ndjson(&body, index.as_deref())?;
+    let actions = parse_bulk_ndjson(&body_str, index.as_deref())?;
 
     let mut items = Vec::new();
     let mut has_errors = false;
