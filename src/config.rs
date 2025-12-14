@@ -12,7 +12,7 @@ pub struct Config {
     pub storage: StorageConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
-    /// Elasticsearch compatibility version (default: "6.4.0")
+    /// Elasticsearch compatibility version (default: "6.8.23")
     #[serde(default = "default_es_version")]
     pub es_version: String,
 }
@@ -65,7 +65,7 @@ fn default_log_level() -> String {
 }
 
 fn default_es_version() -> String {
-    "6.4.0".to_string()
+    "6.8.23".to_string()
 }
 
 impl Default for Config {

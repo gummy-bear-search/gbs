@@ -15,6 +15,7 @@ use crate::storage::Storage;
 #[derive(Clone)]
 pub struct AppState {
     pub storage: Arc<Storage>,
+    pub es_version: String,
 }
 
 // Utility handlers that don't fit in other categories

@@ -4,7 +4,7 @@ This document describes the architecture and design of Gummy Search.
 
 ## Overview
 
-Gummy Search is an Elasticsearch-compatible search engine written in Rust. It provides a RESTful API that mimics Elasticsearch 6.4.0 endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
+Gummy Search is an Elasticsearch-compatible search engine written in Rust. It provides a RESTful API that mimics Elasticsearch 6.8.23 endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
 
 ## System Architecture
 

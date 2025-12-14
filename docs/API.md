@@ -710,7 +710,7 @@ Currently, Gummy Search does not implement rate limiting. All requests are proce
 
 ## Compatibility
 
-Gummy Search is designed to be compatible with Elasticsearch 6.4.0 API. However, not all features are implemented. See the [README](../README.md) for a complete list of implemented features.
+Gummy Search is designed to be compatible with Elasticsearch 6.8.23 API. However, not all features are implemented. See the [README](../README.md) for a complete list of implemented features.
 
 ## Notes
 

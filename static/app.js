@@ -412,7 +412,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                     </div>
                     <div>
                         <p class="text-sm text-gray-600">Version</p>
-                        <p class="font-semibold">${stats.version || '6.4.0'}</p>
+                        <p class="font-semibold">${stats.version || '6.8.23'}</p>
                     </div>
                 </div>
             `;

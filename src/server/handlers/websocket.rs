@@ -41,7 +41,7 @@ async fn handle_socket(socket: axum::extract::ws::WebSocket, state: AppState) {
     }
 
     // Send initial cluster stats
-    let stats = state.storage.get_cluster_stats().await;
+    let stats = state.storage.get_cluster_stats(&state.es_version).await;
     let stats_msg = serde_json::json!({
         "type": "cluster_stats",
         "data": stats
@@ -110,7 +110,7 @@ async fn handle_socket(socket: axum::extract::ws::WebSocket, state: AppState) {
                     break;
                 }
 
-                let stats = state.storage.get_cluster_stats().await;
+                let stats = state.storage.get_cluster_stats(&state.es_version).await;
                 let stats_msg = serde_json::json!({
                     "type": "cluster_stats",
                     "data": stats

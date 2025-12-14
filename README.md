@@ -10,7 +10,7 @@ Elasticsearch-compatible search engine written in Rust.
 
 ## Overview
 
-Gummy Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.4.0 API. It provides a RESTful API compatible with Elasticsearch endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
+Gummy Search is a limited port of Elasticsearch API written in Rust, designed to be compatible with Elasticsearch 6.8.23 API. It provides a RESTful API compatible with Elasticsearch endpoints, making it a drop-in replacement for basic Elasticsearch use cases.
 
 ## Features
 
@@ -261,7 +261,7 @@ Environment variables override config file values (highest priority):
 - `GUMMY_PORT` - Server port (default: 9200)
 - `GUMMY_DATA_DIR` - Data directory path (default: "./data")
 - `GUMMY_LOG_LEVEL` - Log level (default: "info")
-- `GUMMY_ES_VERSION` - Elasticsearch compatibility version (default: "6.4.0")
+- `GUMMY_ES_VERSION` - Elasticsearch compatibility version (default: "6.8.23")
 - `RUST_LOG` - Log level (takes precedence over `GUMMY_LOG_LEVEL` and config file)
 
 **Example:**
@@ -409,7 +409,7 @@ docker logs gummy-search
 
 ## API Compatibility
 
-Gummy Search implements a subset of Elasticsearch 6.4.0 API endpoints.
+Gummy Search implements a subset of Elasticsearch 6.8.23 API endpoints.
 
 ## Documentation
 

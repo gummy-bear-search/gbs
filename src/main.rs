@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         storage: std::sync::Arc::new(storage),
+        es_version: config.es_version.clone(),
     };
 
     // Create app

@@ -2,11 +2,11 @@
 
 ## Overview
 
-This document describes the minimum set of Elasticsearch API endpoints that need to be implemented in the Rust port to ensure compatibility with Elasticsearch 6.4.0 API.
+This document describes the minimum set of Elasticsearch API endpoints that need to be implemented in the Rust port to ensure compatibility with Elasticsearch 6.8.23 API.
 
 ## Elasticsearch Version
 
-The project uses **Elasticsearch 6.4.0**, so all APIs must be compatible with this version.
+The project uses **Elasticsearch 6.8.23**, so all APIs must be compatible with this version.
 
 ## Required API Endpoints
 
@@ -404,7 +404,7 @@ Bulk API uses NDJSON (Newline Delimited JSON) format, where each line is a separ
 
 ### API Versioning
 
-Elasticsearch 6.4.0 uses:
+Elasticsearch 6.8.23 uses:
 - Document type: `_doc` (instead of deprecated document type)
 - Document endpoint: `/{index}/_doc/{id}`
 
@@ -562,7 +562,7 @@ impl GummySearchClient {
 
 ## Conclusion
 
-To create a limited Rust port of Elasticsearch, it is necessary to implement at least **6 critically important endpoints** for basic functionality and **9 additional** for full Elasticsearch 6.4.0 API compatibility.
+To create a limited Rust port of Elasticsearch, it is necessary to implement at least **6 critically important endpoints** for basic functionality and **9 additional** for full Elasticsearch 6.8.23 API compatibility.
 
 Main focus should be on:
 1. Index creation and management

@@ -181,7 +181,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - [x] Integration tests for storage layer (3 tests)
 - [x] Persistence tests (2 tests)
 - [ ] Performance tests
-- [ ] Compatibility tests with Elasticsearch 6.4.0
+- [ ] Compatibility tests with Elasticsearch 6.8.23
 
 ### Documentation
 - [x] API documentation
@@ -328,7 +328,7 @@ This document tracks the development progress and tasks for the Gummy Search pro
 ## Notes
 
 - Focus on MVP endpoints first (6 critical endpoints)
-- Ensure compatibility with Elasticsearch 6.4.0 API
+- Ensure compatibility with Elasticsearch 6.8.23 API
 - Test against Laravel Scout usage patterns
 - Maintain performance comparable to Elasticsearch
 - Current storage: Sled persistent storage (production-ready)
@@ -354,7 +354,7 @@ The project is in excellent shape for an MVP. Most critical features are complet
 1. ✅ **GET /_aliases endpoint** - Completed
 2. **Web Dashboard (`/web/`)** - Interactive dashboard with system info, index management, and search interface
 3. **Performance tests** - Ensure system performs well under load
-4. **Compatibility tests** - Verify Elasticsearch 6.4.0 compatibility
+4. **Compatibility tests** - Verify Elasticsearch 6.8.23 compatibility
 
 #### Medium Priority
 4. **Input validation** - Enhanced validation for all endpoints

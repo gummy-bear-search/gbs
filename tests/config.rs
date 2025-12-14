@@ -9,7 +9,7 @@ fn test_default_config() {
     assert_eq!(config.server.port, 9200);
     assert_eq!(config.storage.data_dir, "./data");
     assert_eq!(config.logging.level, "info");
-    assert_eq!(config.es_version, "6.4.0");
+    assert_eq!(config.es_version, "6.8.23");
 }
 
 #[test]

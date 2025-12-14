@@ -10,6 +10,7 @@ use crate::storage::Index;
 /// Get cluster statistics
 pub async fn get_cluster_stats(
     indices: &Arc<RwLock<HashMap<String, Index>>>,
+    es_version: &str,
 ) -> serde_json::Value {
     let indices_guard = indices.read().await;
     let total_indices = indices_guard.len();
@@ -106,7 +107,7 @@ pub async fn get_cluster_stats(
                 "master": 1,
                 "ingest": 1
             },
-            "versions": ["8.0.0"],
+            "versions": [es_version],
             "os": {
                 "available_processors": num_cpus::get(),
                 "allocated_processors": num_cpus::get(),

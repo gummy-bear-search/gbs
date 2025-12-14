@@ -358,5 +358,5 @@ All routes are relative to the base URL (default: `http://localhost:9200`).
   - `{index}` - Index name
   - `{id}` - Document ID
 - Query parameters are case-sensitive
-- JSON request/response bodies follow Elasticsearch 6.4.0 API format
+- JSON request/response bodies follow Elasticsearch 6.8.23 API format
 - Error responses follow Elasticsearch error format for compatibility

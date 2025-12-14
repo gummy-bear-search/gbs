@@ -31,7 +31,7 @@ pub async fn cluster_health(State(_state): State<AppState>) -> Json<serde_json::
 
 pub async fn cluster_stats(State(state): State<AppState>) -> Result<Json<serde_json::Value>> {
     info!("Getting cluster statistics");
-    let stats = state.storage.get_cluster_stats().await;
+    let stats = state.storage.get_cluster_stats(&state.es_version).await;
     Ok(Json(stats))
 }
 

@@ -114,8 +114,8 @@ impl Storage {
     }
 
     /// Get cluster statistics
-    pub async fn get_cluster_stats(&self) -> serde_json::Value {
-        get_cluster_stats(&self.indices).await
+    pub async fn get_cluster_stats(&self, es_version: &str) -> serde_json::Value {
+        get_cluster_stats(&self.indices, es_version).await
     }
 
     pub async fn update_mapping(
