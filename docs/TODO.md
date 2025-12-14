@@ -180,6 +180,12 @@ This document tracks the development progress and tasks for the Gummy Search pro
 - [x] Unit tests for storage operations (9 tests)
 - [x] Integration tests for storage layer (3 tests)
 - [x] Persistence tests (2 tests)
+- [ ] **Code Coverage Improvement** (Current: 42.40%, Target: 75%+)
+  - [ ] HTTP handler tests (Priority 1 - Expected: +18-20% coverage)
+  - [ ] Statistics module tests (Priority 2 - Expected: +6% coverage)
+  - [ ] Error handling tests (Priority 3 - Expected: +1% coverage)
+  - [ ] Storage edge case tests (Priority 4 - Expected: +5% coverage)
+  - See [CODE_COVERAGE.md](CODE_COVERAGE.md) for detailed plan
 - [ ] Performance tests
 - [ ] Compatibility tests with Elasticsearch 6.8.23
 
@@ -321,9 +327,10 @@ This document tracks the development progress and tasks for the Gummy Search pro
 7. ✅ Add refresh parameter to bulk operations - Completed
 8. ✅ Create comprehensive documentation - Completed
 9. ✅ Implement GET /_aliases endpoint - Completed
-10. **Web Dashboard** - Interactive dashboard at `/web/` with system info and management tools
-11. Performance optimizations (inverted index) - Future enhancement
-12. Support aggregations - Optional feature
+10. **Code Coverage Improvement** - Increase from 42.40% to 75%+ (see [CODE_COVERAGE.md](CODE_COVERAGE.md))
+11. **Web Dashboard** - Interactive dashboard at `/web/` with system info and management tools
+12. Performance optimizations (inverted index) - Future enhancement
+13. Support aggregations - Optional feature
 
 ## Notes
 
@@ -352,9 +359,15 @@ The project is in excellent shape for an MVP. Most critical features are complet
 
 #### High Priority (Next Steps)
 1. ✅ **GET /_aliases endpoint** - Completed
-2. **Web Dashboard (`/web/`)** - Interactive dashboard with system info, index management, and search interface
-3. **Performance tests** - Ensure system performs well under load
-4. **Compatibility tests** - Verify Elasticsearch 6.8.23 compatibility
+2. **Code Coverage Improvement** - Increase from 42.40% to 75%+
+   - HTTP handler tests (Priority 1 - +18-20% coverage)
+   - Statistics module tests (Priority 2 - +6% coverage)
+   - Error handling tests (Priority 3 - +1% coverage)
+   - Storage edge case tests (Priority 4 - +5% coverage)
+   - See [CODE_COVERAGE.md](CODE_COVERAGE.md) for detailed plan
+3. **Web Dashboard (`/web/`)** - Interactive dashboard with system info, index management, and search interface
+4. **Performance tests** - Ensure system performs well under load
+5. **Compatibility tests** - Verify Elasticsearch 6.8.23 compatibility
 
 #### Medium Priority
 4. **Input validation** - Enhanced validation for all endpoints
