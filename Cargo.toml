@@ -29,5 +29,5 @@ num_cpus = "1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
-axum-test = "9.0"
+axum-test = "9.1"
 tempfile = "3.8"
