@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will help you quickly set up and test the example Laravel blog application with Gummy Search.
+This guide will help you quickly set up and test Gummy Wiki with Gummy Search.
 
 ## Step 1: Start Gummy Search Server
 
@@ -22,7 +22,7 @@ curl http://localhost:9200/_cluster/health
 ## Step 2: Set Up Laravel Application
 
 ```bash
-cd example_laravel_app
+cd gummy_wiki
 
 # Install dependencies
 composer install

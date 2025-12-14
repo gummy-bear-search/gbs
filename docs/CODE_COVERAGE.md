@@ -408,7 +408,7 @@ cargo install cargo-tarpaulin
 cargo tarpaulin --out stdout --timeout 120
 
 # Exclude test files and examples
-cargo tarpaulin --out stdout --timeout 120 --exclude-files 'tests/*' 'example_laravel_app/*'
+cargo tarpaulin --out stdout --timeout 120 --exclude-files 'tests/*' 'gummy_wiki/*'
 
 # Generate HTML report
 cargo tarpaulin --out Html --output-dir coverage

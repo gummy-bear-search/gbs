@@ -1,6 +1,6 @@
 # Free Text Databases for Testing
 
-This document lists free text databases and datasets that can be used to seed the example Laravel app with realistic data for testing Gummy Search.
+This document lists free text databases and datasets that can be used to seed Gummy Wiki with realistic data for testing Gummy Search.
 
 ## Content (Blog Posts / Articles)
 

@@ -1,7 +1,7 @@
 {
-    "name": "gummy-search/example-laravel-app",
+    "name": "gummy-search/gummy-wiki",
     "type": "project",
-    "description": "Example Laravel application using Gummy Search with Scout",
+    "description": "Gummy Wiki - Laravel application using Gummy Search with Scout",
     "keywords": ["laravel", "scout", "elasticsearch", "gummy-search"],
     "license": "MIT",
     "require": {

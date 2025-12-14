@@ -1,6 +1,6 @@
-# Example Laravel App - Laravel Scout Integration Example
+# Gummy Wiki - Laravel Scout Integration Example
 
-This is an example Laravel application demonstrating how to use Gummy Search with Laravel Scout.
+This is a Laravel application demonstrating how to use Gummy Search with Laravel Scout. It provides a wiki-like interface for searching and managing content.
 
 ## Features Demonstrated
 
