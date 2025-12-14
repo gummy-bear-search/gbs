@@ -20,3 +20,6 @@ config/gummy-search.yaml
 
 # Data directory
 /data
+
+# Coverage reports
+/cobertura.xml
