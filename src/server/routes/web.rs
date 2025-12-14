@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 
-use crate::server::{root, web_index, AppState};
+use crate::server::{handlers::web::{root, web_index}, AppState};
 
 pub fn routes() -> Router<AppState> {
     Router::new()

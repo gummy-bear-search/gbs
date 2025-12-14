@@ -17,19 +17,3 @@ pub struct AppState {
     pub storage: Arc<Storage>,
     pub es_version: String,
 }
-
-// Utility handlers that don't fit in other categories
-pub async fn root() -> &'static str {
-    "Gummy Search - Elasticsearch-compatible search engine"
-}
-
-pub async fn web_index() -> crate::error::Result<axum::response::Html<String>> {
-    use std::fs;
-    use crate::error::GummySearchError;
-
-    // Read the index.html file
-    let html_content = fs::read_to_string("static/index.html")
-        .map_err(|e| GummySearchError::Storage(format!("Failed to read index.html: {}", e)))?;
-
-    Ok(axum::response::Html(html_content))
-}
